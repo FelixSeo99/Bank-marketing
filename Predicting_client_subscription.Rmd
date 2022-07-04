@@ -17,7 +17,7 @@ library(tidyverse)
 
 ## Data preparation
 
-Starting with looking at the data we have the following attribute information [Moro et al., 2014].
+Starting with looking at the data, the following attribute information follows [Moro et al., 2014].
 
 ### input variables:
 bank client data:
@@ -72,13 +72,14 @@ Output variable (desired target):
 
 * 21 - y - has the client subscribed a term deposit? (binary: 'yes','no')
 
-Seen in the 
+Seen in the attribute information the 11th input variable is not desired for use in an predictive model, why it is removed.  
 
 
 ```{r}
 bank_data <- read_delim("Data/bank_additional_full.csv", delim = ";")
 
-bank_data 
+bank_data_mod <- bank_data %>% 
+  select(-duration)
   
 ```
 
