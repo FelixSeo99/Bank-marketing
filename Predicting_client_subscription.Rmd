@@ -79,8 +79,12 @@ Seen in the attribute information the 11th input variable is not desired for use
 bank_data <- read_delim("Data/bank_additional_full.csv", delim = ";")
 
 bank_data_mod <- bank_data %>% 
-  select(-duration)
-  
+  select(-duration) %>% 
+  filter(if_all(job:education, ~ . != "unknown"))
+
+bank_data_mod
+bank_data %>% filter(default == "yes") 
+#only 3 realizations of yes in default, remove feature?
 ```
 
 
