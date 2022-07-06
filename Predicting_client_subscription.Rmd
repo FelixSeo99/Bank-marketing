@@ -15,6 +15,10 @@ library(keras)
 library(tidyverse)
 ```
 
+# ideas for better prediction
+
+add a column with information if it is the first or second phone call as the same customer often was contacted twice to check if term deposit. 
+
 ## Data preparation
 
 Starting with looking at the data, the following attribute information follows [Moro et al., 2014].
@@ -72,7 +76,7 @@ Output variable (desired target):
 
 * 21 - y - has the client subscribed a term deposit? (binary: 'yes','no')
 
-Seen in the attribute information the 11th input variable is not desired for use in an predictive model, why it is removed. The default attribute is also removed since it only has 3 realizations of people with credit in default. This huge difference in group size will not contribute to the predicative power of the model.  
+Seen in the attribute information the 11th input variable is not desired for use in an predictive model, why it is removed. The default attribute is also removed since it only has 3 realizations of people with credit in default. This huge difference in group size will not contribute to the predicative power of the model. Attributes 2 to 7 all have the risk of containing missing values labeled "unknown". The data containing any of the missing values in attributes 2 to 7 are removed, which ended up being roughly 3000 instances (still the dataset contains approximately 38000 instances).   
 
 
 ```{r}
@@ -80,11 +84,15 @@ bank_data <- read_delim("Data/bank_additional_full.csv", delim = ";")
 
 bank_data_mod <- bank_data %>% 
   select(-duration, -default) %>% 
-  filter(if_all(job:education, ~ . != "unknown"))
+  filter(if_all(job:loan, ~ . != "unknown"))
 
-bank_data_mod
-bank_data %>% filter(default == "yes") 
-#only 3 realizations of yes in default, remove feature?
+bank_data_mod %>% 
+  mutate(new_col = 1, id_col = seq(1, length(bank_data_mod$job), 1)) %>% #id_col because pivot easy to work with then, removed later
+  pivot_wider(names_from = education, values_from = new_col, values_fill = 0)
+
+#bank_data %>% group_by(across(age:y)) %>% filter(n() == 2) #showing duplicate rows though could be different people
+
+bank_data_mod %>% filter(campaign == 3, job == "blue-collar", age == 36, marital == "single")
 ```
 
 
