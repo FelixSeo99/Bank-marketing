@@ -72,14 +72,14 @@ Output variable (desired target):
 
 * 21 - y - has the client subscribed a term deposit? (binary: 'yes','no')
 
-Seen in the attribute information the 11th input variable is not desired for use in an predictive model, why it is removed.  
+Seen in the attribute information the 11th input variable is not desired for use in an predictive model, why it is removed. The default attribute is also removed since it only has 3 realizations of people with credit in default. This huge difference in group size will not contribute to the predicative power of the model.  
 
 
 ```{r}
 bank_data <- read_delim("Data/bank_additional_full.csv", delim = ";")
 
 bank_data_mod <- bank_data %>% 
-  select(-duration) %>% 
+  select(-duration, -default) %>% 
   filter(if_all(job:education, ~ . != "unknown"))
 
 bank_data_mod
