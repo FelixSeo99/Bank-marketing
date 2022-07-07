@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = FALSE)
 library(tensorflow)
 library(keras)
 library(tidyverse)
+library(corrplot)
 ```
 
 # ideas for better prediction
@@ -85,17 +86,52 @@ bank_data <- read_delim("Data/bank_additional_full.csv", delim = ";")
 bank_data_mod <- bank_data %>% 
   select(-duration, -default) %>% 
   filter(if_all(job:loan, ~ . != "unknown"))
+```
 
+
+```{r}
+#trying to get data on nice format, one-hot encoding. 
 bank_data_mod %>% 
-  mutate(new_col = 1, id_col = seq(1, length(bank_data_mod$job), 1)) %>% #id_col because pivot easy to work with then, removed later
-  pivot_wider(names_from = education, values_from = new_col, values_fill = 0)
-
+  mutate(temp1 = 1, temp2 = 1, id_col = seq(1, length(bank_data_mod$job), 1)) %>% #id_col because pivot easy to work with then, removed later
+  pivot_wider(names_from = job, values_from = temp1, values_fill = 0) %>% 
+  pivot_wider(names_from = marital, values_from = temp2, values_fill = 0) %>% 
+  mutate(
+    education = str_replace(education, "illiterate", "0"),
+    education = str_replace(education, "basic.4y", "1"),
+    education = str_replace(education, "basic.6y", "2"),
+    education = str_replace(education, "basic.9y", "3"),
+    education = str_replace(education, "high.school", "4"),
+    education = str_replace(education, "professional.course", "5"),
+    education = str_replace(education, "university.degree", "6")
+  ) %>% 
+  mutate(
+    housing = if_else(housing == "yes", 1, 0),
+    loan = if_else(loan == "yes", 1, 0),
+    contact = if_else(contact == "cellular", 1, 0) # 0 means telephone, 1 cellular
+  ) 
+  
+plot(bank_data_mod[1:5])
 #bank_data %>% group_by(across(age:y)) %>% filter(n() == 2) #showing duplicate rows though could be different people
 
 bank_data_mod %>% filter(campaign == 3, job == "blue-collar", age == 36, marital == "single")
 ```
 
 
+```{r}
+#testing correlation 
+bank_data_mod %>% 
+  select(job, marital) %>% 
+  group_by(job, marital) %>% 
+  summarise(count = n()) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = marital, values_from = count) %>% 
+  select(-job) %>% 
+  data.matrix() %>% 
+  cramerV() #understand bias correction!
+
+
+
+```
 
 
 
