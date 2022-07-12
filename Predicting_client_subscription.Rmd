@@ -122,8 +122,6 @@ bank_data_mod <- bank_data %>%
     y = if_else(y == "yes", 1, 0)
   ) %>% 
   select(-id_col)
-
-plot(bank_data_mod[1:5])
 #bank_data %>% group_by(across(age:y)) %>% filter(n() == 2) #showing duplicate rows though could be different people
 
 bank_data_mod 
@@ -145,23 +143,23 @@ stepAIC(model2, scope=list(upper=model1,lower=model2), direction="both")
 ```{r}
 #testing correlation 
 bank_data %>% 
-  dplyr::select(job, marital) %>% 
-  group_by(job, marital) %>% 
+  dplyr::select(loan, housing) %>% 
+  group_by(loan, housing) %>% 
   summarise(count = n()) %>% 
   ungroup() %>% 
-  pivot_wider(names_from = marital, values_from = count) %>%
+  pivot_wider(names_from = loan, values_from = count) #%>%
   #column_to_rownames(var = "job") %>% 
   dplyr::select(-job) %>% 
   data.matrix() %>% 
   cramerV() #understand bias correction!
 
-cram_V <- function(variable1, variable2, data, bias = TRUE){
+cram_v <- function(variable1, variable2, data, bias = TRUE){
   data %>% 
     dplyr::select(variable1, variable2) %>% 
     group_by(across()) %>% #will not accept string input, why across is used.
     summarise(count = n()) %>% 
     ungroup() %>% 
-    pivot_wider(names_from = variable1, values_from = count) %>% 
+    pivot_wider(names_from = variable1, values_from = count, values_fill = 0) %>% # if NA, then zero realizations of this combination.
     column_to_rownames(var = variable2) %>% 
     data.matrix() %>% 
     cramerV(bias.correct = bias) %>% 
@@ -171,15 +169,28 @@ cram_V <- function(variable1, variable2, data, bias = TRUE){
 ```
 
 ```{r}
-nominal_var <- c("job", "marital", "loan", "housing")
+nominal_var <- c("job", "marital", "loan", "housing", "contact", "month")
 comb <- combn(nominal_var, m = 2)
 cramer_res <- c() #matrix(NA, nrow = length(nominal_var), ncol = length(nominal_var))
 
 
-for(i in seq(1, length(comb[1, ]), 1)){
-  res <- cram_V(comb[i][1], comb[i][2], bank_data)
+for (i in 1:length(comb[1,])) {
+  res <- cram_v(comb[1, i], comb[2, i], bank_data)
   cramer_res[i] <- res
 }
+
+cram_v_matrix <- matrix(
+  NA, 
+  nrow = length(nominal_var), 
+  ncol = length(nominal_var), 
+  dimnames = list(nominal_var, nominal_var)
+) 
+cram_v_matrix[lower.tri(cram_v_matrix, diag=FALSE)] <- cramer_res  
+cram_v_matrix <- t(cram_v_matrix)
+cram_v_matrix[lower.tri(cram_v_matrix, diag=FALSE)] <- cramer_res 
+diag(cram_v_matrix) <- 1
+corrplot(cram_v_matrix, is.corr = FALSE)
+    
 ```
 
 
