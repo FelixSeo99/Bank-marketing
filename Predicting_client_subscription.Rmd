@@ -12,8 +12,10 @@ knitr::opts_chunk$set(echo = FALSE)
 ```{r}
 library(tensorflow)
 library(keras)
+library(MASS)
 library(tidyverse)
 library(corrplot)
+library(rcompanion)
 ```
 
 # ideas for better prediction
@@ -82,24 +84,22 @@ Seen in the attribute information the 11th input variable is not desired for use
 
 ```{r}
 bank_data <- read_delim("Data/bank_additional_full.csv", delim = ";")
-
-bank_data_mod <- bank_data %>% 
-  select(-duration, -default) %>% 
-  filter(if_all(job:loan, ~ . != "unknown"))
 ```
 
 
 ```{r}
 #trying to get data on nice format, one-hot encoding. 
-bank_data_mod %>% 
+bank_data_mod <- bank_data %>% 
+  dplyr::select(-duration, -default) %>% 
   mutate(
     temp1 = 1, 
     temp2 = 1,
     temp3 = 1, 
     temp4 = 1,
     temp5 = 1,
-    id_col = seq(1, length(bank_data_mod$job), 1)
+    id_col = seq(1, length(bank_data$job), 1)
   ) %>% #id_col because pivot easy to work with then, removed later
+  filter(if_all(job:loan, ~ . != "unknown")) %>% 
   pivot_wider(names_from = job, values_from = temp1, values_fill = 0) %>% 
   pivot_wider(names_from = marital, values_from = temp2, values_fill = 0) %>% 
   pivot_wider(names_from = month, values_from = temp3, values_fill = 0) %>%
@@ -120,31 +120,67 @@ bank_data_mod %>%
     loan = if_else(loan == "yes", 1, 0),
     contact = if_else(contact == "cellular", 1, 0), # 0 means telephone, 1 cellular
     y = if_else(y == "yes", 1, 0)
-  ) 
+  ) %>% 
+  select(-id_col)
 
 plot(bank_data_mod[1:5])
 #bank_data %>% group_by(across(age:y)) %>% filter(n() == 2) #showing duplicate rows though could be different people
 
-bank_data_mod %>% filter(campaign == 3, job == "blue-collar", age == 36, marital == "single")
+bank_data_mod 
 ```
+
+```{r}
+model1 <- glm(y ~ ., data = bank_data_mod, family = "binomial")
+model2 <- glm(y ~ 1, data = bank_data_mod, family = "binomial")
+
+results <- predict(model, newdata = bank_data_mod, type = "response")
+results <- ifelse(results > 0.5,1,0) == bank_data_mod$y
+sum(results) / length(results)
+
+stepAIC(model2, scope=list(upper=model1,lower=model2), direction="both")
+```
+
 
 
 ```{r}
 #testing correlation 
-bank_data_mod %>% 
-  select(job, marital) %>% 
+bank_data %>% 
+  dplyr::select(job, marital) %>% 
   group_by(job, marital) %>% 
   summarise(count = n()) %>% 
   ungroup() %>% 
-  pivot_wider(names_from = marital, values_from = count) %>% 
-  select(-job) %>% 
+  pivot_wider(names_from = marital, values_from = count) %>%
+  #column_to_rownames(var = "job") %>% 
+  dplyr::select(-job) %>% 
   data.matrix() %>% 
   cramerV() #understand bias correction!
 
-
+cram_V <- function(variable1, variable2, data, bias = TRUE){
+  data %>% 
+    dplyr::select(variable1, variable2) %>% 
+    group_by(across()) %>% #will not accept string input, why across is used.
+    summarise(count = n()) %>% 
+    ungroup() %>% 
+    pivot_wider(names_from = variable1, values_from = count) %>% 
+    column_to_rownames(var = variable2) %>% 
+    data.matrix() %>% 
+    cramerV(bias.correct = bias) %>% 
+    return()
+}
 
 ```
 
+```{r}
+nominal_var <- c("job", "marital", "loan", "housing")
+comb <- combn(nominal_var, m = 2)
+cramer_res <- c() #matrix(NA, nrow = length(nominal_var), ncol = length(nominal_var))
+
+
+for(i in seq(1, length(comb[1, ]), 1)){
+  res <- cram_V(comb[i][1], comb[i][2], bank_data)
+  cramer_res[i] <- res
+}
+```
 
 
 
