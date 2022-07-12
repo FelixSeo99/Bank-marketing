@@ -77,7 +77,7 @@ Output variable (desired target):
 
 * 21 - y - has the client subscribed a term deposit? (binary: 'yes','no')
 
-Seen in the attribute information the 11th input variable is not desired for use in an predictive model, why it is removed. The default attribute is also removed since it only has 3 realizations of people with credit in default. This huge difference in group size will not contribute to the predicative power of the model. Attributes 2 to 7 all have the risk of containing missing values labeled "unknown". The data containing any of the missing values in attributes 2 to 7 are removed, which ended up being roughly 3000 instances (still the dataset contains approximately 38000 instances).   
+Seen in the attribute information the 11th input variable is not desired for use in an predictive model, why it is removed. The default attribute is also removed since it only has 3 realizations of people with credit in default. This huge difference in group size will not contribute to the predicative power of the model. Attributes 2 to 7 all have the risk of containing missing values labeled "unknown". The data containing any of the missing values in attributes 2 to 7 are removed, which ended up being roughly 3000 instances (still the dataset contains approximately 38000 instances). For the categorical variables the appropriate encoding is conducted. The binary variables are transformed to 0 and 1 outcomes. The ordinal or nominal category classification for the variables are debatable. The education variable is easily classified as an ordinal type variable why we will use simple ordinal encoding. Variables like marital status, last contact day of the week and month are classified as nominal variables and one-hot encoding is conducted. The latter is arguably nominal in this context as the month seems not to have an natural ordering for this classification task.      
 
 
 ```{r}
@@ -92,9 +92,19 @@ bank_data_mod <- bank_data %>%
 ```{r}
 #trying to get data on nice format, one-hot encoding. 
 bank_data_mod %>% 
-  mutate(temp1 = 1, temp2 = 1, id_col = seq(1, length(bank_data_mod$job), 1)) %>% #id_col because pivot easy to work with then, removed later
+  mutate(
+    temp1 = 1, 
+    temp2 = 1,
+    temp3 = 1, 
+    temp4 = 1,
+    temp5 = 1,
+    id_col = seq(1, length(bank_data_mod$job), 1)
+  ) %>% #id_col because pivot easy to work with then, removed later
   pivot_wider(names_from = job, values_from = temp1, values_fill = 0) %>% 
   pivot_wider(names_from = marital, values_from = temp2, values_fill = 0) %>% 
+  pivot_wider(names_from = month, values_from = temp3, values_fill = 0) %>%
+  pivot_wider(names_from = day_of_week, values_from = temp4, values_fill = 0) %>% 
+  pivot_wider(names_from = poutcome, values_from = temp5, values_fill = 0) %>% 
   mutate(
     education = str_replace(education, "illiterate", "0"),
     education = str_replace(education, "basic.4y", "1"),
@@ -102,14 +112,16 @@ bank_data_mod %>%
     education = str_replace(education, "basic.9y", "3"),
     education = str_replace(education, "high.school", "4"),
     education = str_replace(education, "professional.course", "5"),
-    education = str_replace(education, "university.degree", "6")
-  ) %>% 
+    education = str_replace(education, "university.degree", "6"),
+    education = as.numeric(education)
+  ) %>%
   mutate(
     housing = if_else(housing == "yes", 1, 0),
     loan = if_else(loan == "yes", 1, 0),
-    contact = if_else(contact == "cellular", 1, 0) # 0 means telephone, 1 cellular
+    contact = if_else(contact == "cellular", 1, 0), # 0 means telephone, 1 cellular
+    y = if_else(y == "yes", 1, 0)
   ) 
-  
+
 plot(bank_data_mod[1:5])
 #bank_data %>% group_by(across(age:y)) %>% filter(n() == 2) #showing duplicate rows though could be different people
 
