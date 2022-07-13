@@ -197,7 +197,38 @@ corrplot(cram_v_matrix, is.corr = FALSE)
 ```
 
 ```{r}
+# random forest training
+train_x <- bank_data_mod %>%
+  mutate(id_col = 1:length(bank_data_mod$housing)) %>% 
+  slice_sample(prop = 0.8) 
 
+train_y <- train_x %>% 
+  select(y)
+
+test_x <- bank_data_mod %>%
+  mutate(id_col = 1:length(bank_data_mod$housing)) %>%   
+  anti_join(sample, by = "id_col")
+
+test_y <- test_x %>% 
+  select(y)
+  
+train_x <- bank_data_mod %>% slice_sample(prop = 0.8)
+train_y <- bank_data_mod %>% 
+
+
+
+test  <- dplyr::anti_join(iris, train, by = 'id')
+
+randomForest(
+  
+)
+
+```
+
+
+
+```{r}
+# recursive feature eliminaton 
 control <- rfeControl(functions = rfFuncs, method="cv", number=10)
 
 results <- bank_data_mod %>% 
