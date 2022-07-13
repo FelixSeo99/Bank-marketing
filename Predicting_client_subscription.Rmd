@@ -12,10 +12,12 @@ knitr::opts_chunk$set(echo = FALSE)
 ```{r}
 library(tensorflow)
 library(keras)
-library(MASS)
+library(caret)
+library(mlbench)
 library(tidyverse)
 library(corrplot)
 library(rcompanion)
+library(randomForest)
 ```
 
 # ideas for better prediction
@@ -118,13 +120,13 @@ bank_data_mod <- bank_data %>%
   mutate(
     housing = if_else(housing == "yes", 1, 0),
     loan = if_else(loan == "yes", 1, 0),
-    contact = if_else(contact == "cellular", 1, 0), # 0 means telephone, 1 cellular
+    contact = if_else(contact == "cellular", 1, 0), #0 means telephone, 1 cellular.
     y = if_else(y == "yes", 1, 0)
   ) %>% 
-  select(-id_col)
-#bank_data %>% group_by(across(age:y)) %>% filter(n() == 2) #showing duplicate rows though could be different people
+  select(-id_col) %>% 
+  {.[sample(1:nrow(bank_data_mod)), ]} # randomize the data.
 
-bank_data_mod 
+bank_data_mod
 ```
 
 ```{r}
@@ -154,6 +156,8 @@ bank_data %>%
   cramerV() #understand bias correction!
 
 cram_v <- function(variable1, variable2, data, bias = TRUE){
+  # input names of columns in variable1 and variable2 (nominal) to return the
+  # cramer´s phi value. bias = TRUE means use of bias correction.  
   data %>% 
     dplyr::select(variable1, variable2) %>% 
     group_by(across()) %>% #will not accept string input, why across is used.
@@ -190,9 +194,28 @@ cram_v_matrix <- t(cram_v_matrix)
 cram_v_matrix[lower.tri(cram_v_matrix, diag=FALSE)] <- cramer_res 
 diag(cram_v_matrix) <- 1
 corrplot(cram_v_matrix, is.corr = FALSE)
-    
 ```
 
+```{r}
+
+control <- rfeControl(functions = rfFuncs, method="cv", number=10)
+
+results <- bank_data_mod %>% 
+  select(-y) %>%
+  head(n = 1000) %>% 
+  rfe(
+    as.factor(bank_data_mod$y[1:1000]), 
+    sizes = c(1:10),
+    metric = "Accuracy", 
+    rfeControl = control
+  )
+
+print(results)
+plot(results, type=c("g", "o"))
+#sum(predict(results, bank_data_mod[1001:2000,])$pred == bank_data_mod$y[1001:2000])   
+
+
+```
 
 
 
