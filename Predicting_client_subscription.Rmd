@@ -123,6 +123,10 @@ bank_data_mod <- bank_data %>%
     contact = if_else(contact == "cellular", 1, 0), #0 means telephone, 1 cellular.
     y = if_else(y == "yes", 1, 0)
   ) %>% 
+  rename(
+    "blue.collar" = "blue-collar",  #don´t like variables with -. 
+    "self.employed" = "self-employed"
+  ) %>% 
   select(-id_col) %>% 
   {.[sample(1:nrow(bank_data_mod)), ]} # randomize the data.
 
@@ -197,32 +201,61 @@ corrplot(cram_v_matrix, is.corr = FALSE)
 ```
 
 ```{r}
+bank_data_mod %>% 
+  select(
+    y, 
+    age, 
+    education, 
+    euribor3m, 
+    cons.price.idx,
+    nr.employed, 
+    cons.conf.idx,
+    campaign,
+    pdays, 
+    previous
+  ) %>% 
+  cor(method = "spearman") %>% 
+  corrplot(type = "upper")
+```
+
+
+
+
+```{r}
 # random forest training
 train_x <- bank_data_mod %>%
   mutate(id_col = 1:length(bank_data_mod$housing)) %>% 
   slice_sample(prop = 0.8) 
 
 train_y <- train_x %>% 
-  select(y)
+  select(y) %>% 
+  mutate(y = as_factor(y))
 
 test_x <- bank_data_mod %>%
   mutate(id_col = 1:length(bank_data_mod$housing)) %>%   
-  anti_join(sample, by = "id_col")
+  anti_join(train_x, by = "id_col") 
 
 test_y <- test_x %>% 
-  select(y)
+  select(y) %>% 
+  mutate(y = as_factor(y))
+
+train_x <- train_x %>% 
+  select(-id_col, -y)
+
+test_x <- test_x %>% 
+  select(-id_col, -y)
+
+test <- bank_data_mod %>% 
+  mutate(y = as.factor(y)) 
   
-train_x <- bank_data_mod %>% slice_sample(prop = 0.8)
-train_y <- bank_data_mod %>% 
-
-
-
-test  <- dplyr::anti_join(iris, train, by = 'id')
-
-randomForest(
-  
+forest <- randomForest(
+  y ~ . - euribor3m - previous, 
+  data = test, 
+  ntree = 200, 
+  nodesize = 10
 )
 
+forest
 ```
 
 
@@ -232,7 +265,7 @@ randomForest(
 control <- rfeControl(functions = rfFuncs, method="cv", number=10)
 
 results <- bank_data_mod %>% 
-  select(-y) %>%
+  select(-y, -euribor3m, -previous) %>%
   head(n = 1000) %>% 
   rfe(
     as.factor(bank_data_mod$y[1:1000]), 
