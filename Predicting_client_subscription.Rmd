@@ -224,12 +224,12 @@ bank_data_mod %>%
 ```{r}
 # random forest training
 train_x <- bank_data_mod %>%
-  mutate(id_col = 1:length(bank_data_mod$housing)) %>% 
-  slice_sample(prop = 0.8) 
+  select(-y)
+  #mutate(id_col = 1:length(bank_data_mod$housing)) %>% 
+  #slice_sample(prop = 0.8) 
 
-train_y <- train_x %>% 
-  select(y) %>% 
-  mutate(y = as_factor(y))
+train_y <- bank_data_mod%>% 
+  select(y) 
 
 test_x <- bank_data_mod %>%
   mutate(id_col = 1:length(bank_data_mod$housing)) %>%   
@@ -249,10 +249,11 @@ test <- bank_data_mod %>%
   mutate(y = as.factor(y)) 
   
 forest <- randomForest(
-  y ~ . - euribor3m - previous, 
+  y ~ ., 
   data = test, 
-  ntree = 200, 
-  nodesize = 10
+  ntree = 500, 
+  sampsize = 0.4 * nrow(bank_data_mod),
+  nodesize = 2
 )
 
 forest
@@ -282,6 +283,32 @@ plot(results, type=c("g", "o"))
 ```
 
 
+```{r}
+# NN testing
+
+NN <- keras_model_sequential() %>% 
+  layer_dense(units = 5, activation = "relu", input_shape = ncol(train_x)) %>% 
+  layer_dense(units = 2, activation = "sigmoid") %>% 
+  
+  compile(
+    optimizer = "adam",
+    loss = "categorical_crossentropy",
+    metrics = "accuracy"
+  ) 
+  
+
+
+NN %>% fit(
+  x = as.matrix(train_x),
+  y = to_categorical(as.integer(unlist(train_y)) , num_classes = 2), 
+  epochs = 20, 
+  batch_size = 256, 
+  validation_split = 0.2
+)
+
+
+
+```
 
 
 
