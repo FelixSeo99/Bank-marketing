@@ -10,14 +10,15 @@ knitr::opts_chunk$set(echo = FALSE)
 ```
 
 ```{r}
-library(tensorflow)
-library(keras)
+#library(tensorflow)
+#library(keras)
 library(caret)
 library(mlbench)
 library(tidyverse)
 library(corrplot)
 library(rcompanion)
 library(randomForest)
+library(glmnet)
 ```
 
 # ideas for better prediction
@@ -134,14 +135,23 @@ bank_data_mod
 ```
 
 ```{r}
-model1 <- glm(y ~ ., data = bank_data_mod, family = "binomial")
-model2 <- glm(y ~ 1, data = bank_data_mod, family = "binomial")
+train_data <- bank_data_mod %>% slice_head(prop = 0.8) %>% select(-student, -thu)
+test_data <- bank_data_mod[length(train_data$y):length(bank_data_mod$y),]  %>% select(-student, -thu)
 
-results <- predict(model, newdata = bank_data_mod, type = "response")
-results <- ifelse(results > 0.5,1,0) == bank_data_mod$y
-sum(results) / length(results)
+model1 <- glm(y ~ ., data = train_data, family = "binomial")
+#model2 <- glm(y ~ 1, data = bank_data_mod, family = "binomial")
 
-stepAIC(model2, scope=list(upper=model1,lower=model2), direction="both")
+predicted <- predict(model1, newdata = test_data, type = "response")
+predicted <- ifelse(predicted > 0.5,1,0) %>% as.vector() %>% as.factor()
+#sum(results) / length(results)
+confusionMatrix(predicted, as.factor(test_data$y))
+
+
+#test <- glmnet(model.matrix(y ~ ., bank_data_mod), bank_data_mod$y, family = "binomial", alpha = 1, lambda = NULL)
+#cv.lasso <- cv.glmnet(model.matrix(y ~ ., bank_data_mod), bank_data_mod$y, family = "binomial", alpha = 1)
+
+
+#stepAIC(model2, scope=list(upper=model1,lower=model2), direction="both")
 ```
 
 
@@ -283,7 +293,7 @@ plot(results, type=c("g", "o"))
 ```
 
 
-```{r}
+```{r, eval = FALSE}
 # NN testing
 
 NN <- keras_model_sequential() %>% 
@@ -311,4 +321,12 @@ NN %>% fit(
 ```
 
 
+```{r}
+
+test <- bank_data_mod %>% 
+  mutate_all(~(scale(.) %>% as.vector))  
+  
+lm(y ~ ., data = test) %>% 
+summary()
+```
 
