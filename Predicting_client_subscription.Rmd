@@ -17,8 +17,9 @@ library(mlbench)
 library(tidyverse)
 library(corrplot)
 library(rcompanion)
-library(randomForest)
+#library(randomForest)
 library(glmnet)
+library(gglasso)
 ```
 
 # ideas for better prediction
@@ -139,6 +140,7 @@ train_data <- bank_data_mod %>% slice_head(prop = 0.8) %>% select(-student, -thu
 test_data <- bank_data_mod[length(train_data$y):length(bank_data_mod$y),]  %>% select(-student, -thu)
 
 model1 <- glm(y ~ ., data = train_data, family = "binomial")
+
 #model2 <- glm(y ~ 1, data = bank_data_mod, family = "binomial")
 
 predicted <- predict(model1, newdata = test_data, type = "response")
@@ -150,9 +152,54 @@ confusionMatrix(predicted, as.factor(test_data$y))
 #test <- glmnet(model.matrix(y ~ ., bank_data_mod), bank_data_mod$y, family = "binomial", alpha = 1, lambda = NULL)
 #cv.lasso <- cv.glmnet(model.matrix(y ~ ., bank_data_mod), bank_data_mod$y, family = "binomial", alpha = 1)
 
-
 #stepAIC(model2, scope=list(upper=model1,lower=model2), direction="both")
 ```
+
+```{r}
+# The grpreg package, see if it is better than gglasso below. 
+
+
+
+```
+
+
+
+```{r, eval= FALSE}
+#The gglasso package. Does not seem to allow to set the threshold for predicting the 
+#probabilities to the correct class (pi_0 in agresti book categorical analysis). 
+#this means that a ROC curve is not going to be able to do. 
+
+groups = c(seq(1, 13), rep(14, 11), rep(15, 3), rep(16, 10), rep(17, 5), rep(18, 3))
+
+data_glasso_y <- bank_data_mod %>% 
+  select(y) %>% 
+  slice_head(n = 1000) %>% 
+  mutate(y = if_else(y == 0, -1, y)) %>% 
+  as.matrix()
+  
+data_glasso_pred <- bank_data_mod %>%
+  select(-y) %>%
+  scale() %>% 
+  {.[1:1000, ]} 
+  
+model_glasso <- gglasso(
+  data_glasso_pred,
+  data_glasso_y,
+  group = groups,
+  loss = "logit",
+  nlambda = 10,
+)
+
+
+test2 <- cv.gglasso(
+  data_glasso_pred,
+  data_glasso_y,
+  group = groups,
+  loss = "logit",
+  pred.loss = "misclass"
+)
+```
+
 
 
 
