@@ -20,6 +20,7 @@ library(rcompanion)
 #library(randomForest)
 library(glmnet)
 library(gglasso)
+library(rpart)
 ```
 
 # ideas for better prediction
@@ -155,49 +156,101 @@ confusionMatrix(predicted, as.factor(test_data$y))
 #stepAIC(model2, scope=list(upper=model1,lower=model2), direction="both")
 ```
 
-```{r}
-# The grpreg package, see if it is better than gglasso below. 
+```{r, eval= FALSE}
+#The gglasso package. group lasso method. I try under sampling the data
+
+bank_data_glasso <- bank_data_mod %>% 
+  select(-y) %>% 
+  scale() %>% #standardized data for lasso.
+  as.data.frame() %>% 
+  add_column(y = bank_data_mod$y)
+  
+groups = c(seq(1, 13), rep(14, 11), rep(15, 3), rep(16, 10), rep(17, 5), rep(18, 3))
+
+success_y <- bank_data_glasso %>% 
+  filter(y == 1)
+
+data_under_samp <- bank_data_glasso %>% 
+  filter(y == 0) %>% 
+  slice_sample(n = length(success_y$y)) %>% 
+  add_row(success_y) %>% 
+  slice_sample(prop = 1) #randomize the rows, before the where ordered
+  
+train_under_samp <- data_under_samp %>% 
+  slice_head(prop = 0.8) #rows already randomized 
+  
+test_under_samp <- data_under_samp %>% 
+  slice_tail(prop = 0.2)
 
 
+#########
+#data_glasso_y <- bank_data_mod %>% 
+#  select(y) %>%
+#  slice_head(n = 1000) %>%   
+#  mutate(y = if_else(y == 0, -1, y)) %>% #gglasso wants -1 1 responses only
+#  as.matrix()
+  
+#data_glasso_pred <- bank_data_mod %>%
+#  select(-y) %>%
+#  scale() %>% 
+#  {.[1:1000, ]} 
+###############
+
+train_glasso_pred <- train_under_samp %>% 
+  select(-y) %>% 
+  as.matrix()
+
+train_glasso_y <- train_under_samp %>% 
+  select(y) %>% 
+  mutate(y = if_else(y == 0, -1, y)) %>% #gglasso wants -1/1 responses only
+  as.matrix()
+    
+test_glasso_pred <- test_under_samp %>% 
+  select(-y) %>% 
+  scale()
+
+model_glasso <- gglasso(
+  train_glasso_pred, #only predictors chosen
+  train_glasso_y,
+  group = groups,
+  loss = "logit",
+  nlambda = 5,
+)
+
+#test2 <- cv.gglasso(
+#  data_glasso_pred,
+#  data_glasso_y,
+#  group = groups,
+#  loss = "logit",
+#  pred.loss = "loss"
+#)
+
+test_pred <- predict(
+  model_glasso, 
+  newx = test_glasso_pred, 
+  type = "link"  #link gives pred values. convert to prob by 1/(1+e^-x)
+)
+  
+hej <- test_pred %>% 
+  as.data.frame() %>%
+  select(s2) %>% 
+  mutate(s2 = 1 / (1 + 2.72^(-s2)), s2 = if_else(s2 > 0.4, 1, 0), s2 = as.factor(s2))  
+
+
+confusionMatrix(hej$s2, as.factor(test_under_samp$y), positive = "1")
 
 ```
 
+```{r}
+#classification trees 
 
+tree_model <- rpart(y ~ ., data = bank_data_mod, method = "class")
 
-```{r, eval= FALSE}
-#The gglasso package. Does not seem to allow to set the threshold for predicting the 
-#probabilities to the correct class (pi_0 in agresti book categorical analysis). 
-#this means that a ROC curve is not going to be able to do. 
-
-groups = c(seq(1, 13), rep(14, 11), rep(15, 3), rep(16, 10), rep(17, 5), rep(18, 3))
-
-data_glasso_y <- bank_data_mod %>% 
-  select(y) %>% 
-  slice_head(n = 1000) %>% 
-  mutate(y = if_else(y == 0, -1, y)) %>% 
-  as.matrix()
+predict(tree_model, data = bank_data_mod, type = "class") %>% 
+  as.vector() %>% 
+  as.factor() %>% 
+  confusionMatrix(as.factor(bank_data_mod$y))
   
-data_glasso_pred <- bank_data_mod %>%
-  select(-y) %>%
-  scale() %>% 
-  {.[1:1000, ]} 
-  
-model_glasso <- gglasso(
-  data_glasso_pred,
-  data_glasso_y,
-  group = groups,
-  loss = "logit",
-  nlambda = 10,
-)
-
-
-test2 <- cv.gglasso(
-  data_glasso_pred,
-  data_glasso_y,
-  group = groups,
-  loss = "logit",
-  pred.loss = "misclass"
-)
 ```
 
 
