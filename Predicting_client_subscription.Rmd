@@ -207,7 +207,7 @@ train_glasso_y <- train_under_samp %>%
     
 test_glasso_pred <- test_under_samp %>% 
   select(-y) %>% 
-  scale()
+  scale() 
 
 model_glasso <- gglasso(
   train_glasso_pred, #only predictors chosen
@@ -230,6 +230,18 @@ test_pred <- predict(
   newx = test_glasso_pred, 
   type = "link"  #link gives pred values. convert to prob by 1/(1+e^-x)
 )
+
+cv_glasso <- cv.gglasso(
+  train_glasso_pred,
+  train_glasso_y,
+  group = groups,
+  loss = "logit",
+  #lambda = c(seq(0.00001, 0.001, 0.00001), 0.002, 0.003, 0.004),
+  pred.loss = "loss",
+  nfolds = 10
+)
+cv_glass %>% plot()
+
   
 hej <- test_pred %>% 
   as.data.frame() %>%
