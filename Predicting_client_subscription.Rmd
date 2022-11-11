@@ -136,7 +136,7 @@ bank_data_mod <- bank_data %>%
 bank_data_mod
 ```
 
-```{r}
+```{r, eval=FALSE}
 train_data <- bank_data_mod %>% slice_head(prop = 0.8) %>% select(-student, -thu)
 test_data <- bank_data_mod[length(train_data$y):length(bank_data_mod$y),]  %>% select(-student, -thu)
 
@@ -156,8 +156,9 @@ confusionMatrix(predicted, as.factor(test_data$y))
 #stepAIC(model2, scope=list(upper=model1,lower=model2), direction="both")
 ```
 
-```{r, eval= FALSE}
+```{r}
 #The gglasso package. group lasso method. I try under sampling the data
+set.seed(990108)
 
 bank_data_glasso <- bank_data_mod %>% 
   select(-y) %>% 
@@ -214,22 +215,20 @@ model_glasso <- gglasso(
   train_glasso_y,
   group = groups,
   loss = "logit",
-  nlambda = 5,
+  lambda = cv_glasso$lambda.min,
 )
-
-#test2 <- cv.gglasso(
-#  data_glasso_pred,
-#  data_glasso_y,
-#  group = groups,
-#  loss = "logit",
-#  pred.loss = "loss"
-#)
 
 test_pred <- predict(
   model_glasso, 
   newx = test_glasso_pred, 
-  type = "link"  #link gives pred values. convert to prob by 1/(1+e^-x)
+  type = "class",  #link gives pred values. convert to prob by 1/(1+e^-x)
 )
+
+test_under_samp %>% 
+  select(y) %>% 
+  mutate(y = if_else(y == 0, -1, y), y = as.factor(y)) %>% 
+  {.$y} %>%  
+  {confusionMatrix(as.factor(test_pred),. )}
 
 cv_glasso <- cv.gglasso(
   train_glasso_pred,
@@ -256,12 +255,64 @@ confusionMatrix(hej$s2, as.factor(test_under_samp$y), positive = "1")
 ```{r}
 #classification trees 
 
-tree_model <- rpart(y ~ ., data = bank_data_mod, method = "class")
+#Fixing the nominall data to be ordered proportions
+bank_data_tree <- bank_data %>% 
+  select(-duration, -default)  %>% 
+  filter(if_all(job:y, ~ . != "unknown")) %>% 
+  mutate(
+    education = str_replace(education, "illiterate", "0"),
+    education = str_replace(education, "basic.4y", "1"),
+    education = str_replace(education, "basic.6y", "2"),
+    education = str_replace(education, "basic.9y", "3"),
+    education = str_replace(education, "high.school", "4"),
+    education = str_replace(education, "professional.course", "5"),
+    education = str_replace(education, "university.degree", "6"),
+    education = as.numeric(education)
+  ) %>%
+  mutate(
+    housing = if_else(housing == "yes", 1, 0),
+    loan = if_else(loan == "yes", 1, 0),
+    contact = if_else(contact == "cellular", 1, 0),
+    y = if_else(y == "yes", 1, 0),
+    poutcome = if_else(poutcome == "success", 1, 0)
+  ) 
 
-predict(tree_model, data = bank_data_mod, type = "class") %>% 
+data_tree_success <- bank_data_tree %>% 
+  filter(y == 1)
+  
+data_tree_balanced <- bank_data_tree %>% 
+  filter(y == 0) %>% 
+  slice_sample(n = length(data_tree_success$y)) %>% 
+  add_row(data_tree_success) %>% 
+  group_by(job) %>% 
+  mutate(job = sum(y) / length(data_tree_success$y)) %>% # the prop of successes in each job, mean works since 1/0 outcome
+  ungroup() %>%
+  group_by(marital) %>% 
+  mutate(marital = sum(y) / length(data_tree_success$y)) %>% # the prop of successes in each job, mean works since 1/0 outcome
+  ungroup() %>%
+  group_by(month) %>% 
+  mutate(month = sum(y) / length(data_tree_success$y)) %>% # the prop of successes in each job, mean works since 1/0 outcome
+  ungroup() %>%
+  group_by(day_of_week) %>% 
+  mutate(day_of_week = sum(y) / length(data_tree_success$y)) %>% # the prop of successes in each job, mean works since 1/0 outcome
+  ungroup() %>%  
+  slice_sample(prop = 1) #randomize
+
+#data_tree_balanced #%>% distinct(prop) %>% select(prop) #%>% {sum(.$prop)}
+
+
+train_tree <- data_tree_balanced %>% slice_head(n = 0.8*length(data_tree_balanced$y))
+test_tree <- data_tree_balanced %>% slice_tail(n = 0.2*length(data_tree_balanced$y))
+
+tree_parameters <- rpart.control(minsplit = 60, maxcompete = 10, maxdepth = 5, cp = 0.003)
+tree_model <- rpart(y ~ ., data = train_tree, method = "class", control = tree_parameters)
+rpart.plot(tree_model, extra = 106)
+
+
+predict(tree_model, test_tree, type = "class") %>% 
   as.vector() %>% 
-  as.factor() %>% 
-  confusionMatrix(as.factor(bank_data_mod$y))
+  as.factor() %>%   
+  confusionMatrix(as.factor(test_tree$y))
   
 ```
 
