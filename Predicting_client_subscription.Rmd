@@ -249,6 +249,7 @@ confusionMatrix(hej$s2, as.factor(test_under_samp$y), positive = "1")
 ```
 
 ```{r}
+set.seed(990108)
 #classification trees 
 
 #Fixing the nominall data to be ordered proportions
@@ -306,16 +307,30 @@ rpart.plot(tree_model, extra = 106)
 
 
 test2 <- predict(tree_model, test_tree, type = "prob") 
-rownames(test_2) <- NULL
+rownames(test2) <- NULL
 
-hej %>%  
-  as.data.frame() %>%
-  rename("no" = "0", "yes" = "1") %>% 
-  mutate(y = test_tree$y) %>%  
-  select(-no) #%>% 
+ #%>% 
   #{verification::roc.plot(.$y, .$yes)} 
 
 ```
+
+```{r}
+test
+hej <- test2 %>%  
+  as.data.frame() %>%
+  rename("no" = "0", "yes" = "1") %>%  
+  select(-no) %>% 
+  add_column(test) %>% 
+  select(-y)
+
+hej
+
+verification::roc.plot(test$y, hej)
+
+
+```
+
+
 
 ```{r,eval = FALSE}
 #testing correlation 
