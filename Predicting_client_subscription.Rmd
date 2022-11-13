@@ -21,6 +21,7 @@ library(rcompanion)
 library(glmnet)
 library(gglasso)
 library(rpart)
+library(rpart.plot)
 ```
 
 # ideas for better prediction
@@ -131,7 +132,7 @@ bank_data_mod <- bank_data %>%
     "self.employed" = "self-employed"
   ) %>% 
   select(-id_col) %>% 
-  {.[sample(1:nrow(bank_data_mod)), ]} # randomize the data.
+  slice_sample(prop = 1) # randomize the data.
 
 bank_data_mod
 ```
@@ -210,6 +211,17 @@ test_glasso_pred <- test_under_samp %>%
   select(-y) %>% 
   scale() 
 
+cv_glasso <- cv.gglasso(
+  train_glasso_pred,
+  train_glasso_y,
+  group = groups,
+  loss = "logit",
+  lambda = c(seq(0.00001, 0.001, 0.00001), 0.002, 0.003, 0.004),
+  pred.loss = "loss",
+  nfolds = 10
+)
+plot(cv_glasso)
+
 model_glasso <- gglasso(
   train_glasso_pred, #only predictors chosen
   train_glasso_y,
@@ -217,32 +229,16 @@ model_glasso <- gglasso(
   loss = "logit",
   lambda = cv_glasso$lambda.min,
 )
-
-test_pred <- predict(
-  model_glasso, 
-  newx = test_glasso_pred, 
-  type = "class",  #link gives pred values. convert to prob by 1/(1+e^-x)
-)
-
-test_under_samp %>% 
-  select(y) %>% 
-  mutate(y = if_else(y == 0, -1, y), y = as.factor(y)) %>% 
-  {.$y} %>%  
-  {confusionMatrix(as.factor(test_pred),. )}
-
-cv_glasso <- cv.gglasso(
-  train_glasso_pred,
-  train_glasso_y,
-  group = groups,
-  loss = "logit",
-  #lambda = c(seq(0.00001, 0.001, 0.00001), 0.002, 0.003, 0.004),
-  pred.loss = "loss",
-  nfolds = 10
-)
-cv_glass %>% plot()
-
   
-hej <- test_pred %>% 
+test <- model_glasso %>% 
+  predict(newx = test_glasso_pred, type = "link") %>% 
+  as.data.frame() %>% 
+  rename("pred" = "s0") %>% 
+  mutate(y = test_under_samp$y, pred = 1 / (1 + 2.72^-pred)) #%>% 
+  #{verification::roc.plot(.$y, .$pred, thresholds = seq(0, 1, 0.01))} 
+
+
+test_pred %>% 
   as.data.frame() %>%
   select(s2) %>% 
   mutate(s2 = 1 / (1 + 2.72^(-s2)), s2 = if_else(s2 > 0.4, 1, 0), s2 = as.factor(s2))  
@@ -296,30 +292,32 @@ data_tree_balanced <- bank_data_tree %>%
   group_by(day_of_week) %>% 
   mutate(day_of_week = sum(y) / length(data_tree_success$y)) %>% # the prop of successes in each job, mean works since 1/0 outcome
   ungroup() %>%  
-  slice_sample(prop = 1) #randomize
-
+  slice_sample(prop = 1) %>% #randomize
+  mutate(month = round(month, 2), month = as.factor(month))
 #data_tree_balanced #%>% distinct(prop) %>% select(prop) #%>% {sum(.$prop)}
 
 
 train_tree <- data_tree_balanced %>% slice_head(n = 0.8*length(data_tree_balanced$y))
 test_tree <- data_tree_balanced %>% slice_tail(n = 0.2*length(data_tree_balanced$y))
 
-tree_parameters <- rpart.control(minsplit = 60, maxcompete = 10, maxdepth = 5, cp = 0.003)
+tree_parameters <- rpart.control(minsplit = 60, maxcompete = 10, maxdepth = 5, cp = 0.01)
 tree_model <- rpart(y ~ ., data = train_tree, method = "class", control = tree_parameters)
 rpart.plot(tree_model, extra = 106)
 
 
-predict(tree_model, test_tree, type = "class") %>% 
-  as.vector() %>% 
-  as.factor() %>%   
-  confusionMatrix(as.factor(test_tree$y))
-  
+test2 <- predict(tree_model, test_tree, type = "prob") 
+rownames(test_2) <- NULL
+
+hej %>%  
+  as.data.frame() %>%
+  rename("no" = "0", "yes" = "1") %>% 
+  mutate(y = test_tree$y) %>%  
+  select(-no) #%>% 
+  #{verification::roc.plot(.$y, .$yes)} 
+
 ```
 
-
-
-
-```{r}
+```{r,eval = FALSE}
 #testing correlation 
 bank_data %>% 
   dplyr::select(loan, housing) %>% 
@@ -349,7 +347,7 @@ cram_v <- function(variable1, variable2, data, bias = TRUE){
 
 ```
 
-```{r}
+```{r, eval = FALSE}
 nominal_var <- c("job", "marital", "loan", "housing", "contact", "month")
 comb <- combn(nominal_var, m = 2)
 cramer_res <- c() #matrix(NA, nrow = length(nominal_var), ncol = length(nominal_var))
@@ -373,7 +371,7 @@ diag(cram_v_matrix) <- 1
 corrplot(cram_v_matrix, is.corr = FALSE)
 ```
 
-```{r}
+```{r; eval = FALSE}
 bank_data_mod %>% 
   select(
     y, 
@@ -394,7 +392,7 @@ bank_data_mod %>%
 
 
 
-```{r}
+```{r, eval = FALSE}
 # random forest training
 train_x <- bank_data_mod %>%
   select(-y)
@@ -434,7 +432,7 @@ forest
 
 
 
-```{r}
+```{r, eval = FALSE}
 # recursive feature eliminaton 
 control <- rfeControl(functions = rfFuncs, method="cv", number=10)
 
@@ -483,13 +481,4 @@ NN %>% fit(
 
 ```
 
-
-```{r}
-
-test <- bank_data_mod %>% 
-  mutate_all(~(scale(.) %>% as.vector))  
-  
-lm(y ~ ., data = test) %>% 
-summary()
-```
 
