@@ -10,14 +10,11 @@ knitr::opts_chunk$set(echo = FALSE)
 ```
 
 ```{r}
-#library(tensorflow)
-#library(keras)
 library(caret)
 library(mlbench)
 library(tidyverse)
 library(corrplot)
 library(rcompanion)
-#library(randomForest)
 library(glmnet)
 library(gglasso)
 library(rpart)
@@ -238,13 +235,13 @@ test <- model_glasso %>%
   #{verification::roc.plot(.$y, .$pred, thresholds = seq(0, 1, 0.01))} 
 
 
-test_pred %>% 
-  as.data.frame() %>%
-  select(s2) %>% 
-  mutate(s2 = 1 / (1 + 2.72^(-s2)), s2 = if_else(s2 > 0.4, 1, 0), s2 = as.factor(s2))  
+#test_pred %>% 
+ # as.data.frame() %>%
+ # select(s2) %>% 
+#  mutate(s2 = 1 / (1 + 2.72^(-s2)), s2 = if_else(s2 > 0.4, 1, 0), s2 = as.factor(s2))  
+#
 
-
-confusionMatrix(hej$s2, as.factor(test_under_samp$y), positive = "1")
+#confusionMatrix(hej$s2, as.factor(test_under_samp$y), positive = "1")
 
 ```
 
@@ -315,7 +312,7 @@ rownames(test2) <- NULL
 ```
 
 ```{r}
-test
+
 hej <- test2 %>%  
   as.data.frame() %>%
   rename("no" = "0", "yes" = "1") %>%  
@@ -323,7 +320,6 @@ hej <- test2 %>%
   add_column(test) %>% 
   select(-y)
 
-hej
 
 verification::roc.plot(test$y, hej)
 
@@ -469,31 +465,5 @@ plot(results, type=c("g", "o"))
 ```
 
 
-```{r, eval = FALSE}
-# NN testing
-
-NN <- keras_model_sequential() %>% 
-  layer_dense(units = 5, activation = "relu", input_shape = ncol(train_x)) %>% 
-  layer_dense(units = 2, activation = "sigmoid") %>% 
-  
-  compile(
-    optimizer = "adam",
-    loss = "categorical_crossentropy",
-    metrics = "accuracy"
-  ) 
-  
-
-
-NN %>% fit(
-  x = as.matrix(train_x),
-  y = to_categorical(as.integer(unlist(train_y)) , num_classes = 2), 
-  epochs = 20, 
-  batch_size = 256, 
-  validation_split = 0.2
-)
-
-
-
-```
 
 
