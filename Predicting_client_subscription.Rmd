@@ -25,6 +25,8 @@ library(rpart.plot)
 
 add a column with information if it is the first or second phone call as the same customer often was contacted twice to check if term deposit. 
 
+I DONT HAVE ACCESS TO THE ENTIRE DATASET SO I CANNOT SPLIT THE DATA IN TRAIN (4 YEARS) AND TEST (1 YEAR) AS TIME DEPENDENT. THIS IS BECAUSE MY DATA IS VERY UNBALENCE IN THE SENSE THAT ALL THE Y =1 IS IN THE TEST SET. NOTE THAT THE DATA IS ORDERED BY YEAR AND MONTH, WHICH WOULD HAVE BEEN CONVINIENT IF I DID NOT HAVE UNBALANCED DATA........
+
 ## Data preparation
 
 Starting with looking at the data, the following attribute information follows [Moro et al., 2014].
@@ -93,7 +95,7 @@ bank_data <- read_delim("Data/bank_additional_full.csv", delim = ";")
 ```{r}
 #trying to get data on nice format, one-hot encoding. 
 bank_data_mod <- bank_data %>% 
-  dplyr::select(-duration, -default) %>% 
+  dplyr::select(-duration, -default) %>% #probably include default?????
   mutate(
     temp1 = 1, 
     temp2 = 1,
@@ -129,29 +131,9 @@ bank_data_mod <- bank_data %>%
     "self.employed" = "self-employed"
   ) %>% 
   select(-id_col) #%>% 
-  #slice_sample(prop = 1) # randomize the data.
+  slice_sample(prop = 1) # randomize the data.
 
 bank_data_mod
-```
-
-```{r, eval=FALSE}
-train_data <- bank_data_mod %>% slice_head(prop = 0.8) %>% select(-student, -thu)
-test_data <- bank_data_mod[length(train_data$y):length(bank_data_mod$y),]  %>% select(-student, -thu)
-
-model1 <- glm(y ~ ., data = train_data, family = "binomial")
-
-#model2 <- glm(y ~ 1, data = bank_data_mod, family = "binomial")
-
-predicted <- predict(model1, newdata = test_data, type = "response")
-predicted <- ifelse(predicted > 0.5,1,0) %>% as.vector() %>% as.factor()
-#sum(results) / length(results)
-confusionMatrix(predicted, as.factor(test_data$y))
-
-
-#test <- glmnet(model.matrix(y ~ ., bank_data_mod), bank_data_mod$y, family = "binomial", alpha = 1, lambda = NULL)
-#cv.lasso <- cv.glmnet(model.matrix(y ~ ., bank_data_mod), bank_data_mod$y, family = "binomial", alpha = 1)
-
-#stepAIC(model2, scope=list(upper=model1,lower=model2), direction="both")
 ```
 
 ```{r}
@@ -294,18 +276,19 @@ data_tree_balanced <- bank_data_tree %>%
   mutate(across(c(job, marital, month, day_of_week), ~ round(.x, digits = 3))) %>% 
   mutate(across(c(housing:contact, poutcome), ~ as.factor(.x))) %>% 
   mutate(across(c(job, marital, education, month, day_of_week), ~ as.ordered(.x)))
-#data_tree_balanced #%>% distinct(prop) %>% select(prop) #%>% {sum(.$prop)}
+
 
 
 train_tree <- data_tree_balanced %>% slice_head(n = 0.8*length(data_tree_balanced$y))
 test_tree <- data_tree_balanced %>% slice_tail(n = 0.2*length(data_tree_balanced$y))
 
-tree_parameters <- rpart.control(minsplit = 60, maxcompete = 10, maxdepth = 5, cp = 0.01)
+tree_parameters <- rpart.control(minsplit = 60, maxcompete = 10, maxdepth = 5, cp = 0.005)
 tree_model <- rpart(y ~ ., data = train_tree, method = "class", control = tree_parameters)
 rpart.plot(tree_model, extra = 106)
 
 
-test2 <- predict(tree_model, test_tree, type = "prob") 
+test2 <- predict(tree_model, test_tree, type = "prob")  
+
 rownames(test2) <- NULL
 
  #%>% 
