@@ -128,8 +128,8 @@ bank_data_mod <- bank_data %>%
     "blue.collar" = "blue-collar",  #don´t like variables with -. 
     "self.employed" = "self-employed"
   ) %>% 
-  select(-id_col) %>% 
-  slice_sample(prop = 1) # randomize the data.
+  select(-id_col) #%>% 
+  #slice_sample(prop = 1) # randomize the data.
 
 bank_data_mod
 ```
@@ -158,29 +158,22 @@ confusionMatrix(predicted, as.factor(test_data$y))
 #The gglasso package. group lasso method. I try under sampling the data
 set.seed(990108)
 
-bank_data_glasso <- bank_data_mod %>% 
-  select(-y) %>% 
-  scale() %>% #standardized data for lasso.
-  as.data.frame() %>% 
-  add_column(y = bank_data_mod$y)
-  
-groups = c(seq(1, 13), rep(14, 11), rep(15, 3), rep(16, 10), rep(17, 5), rep(18, 3))
-
-success_y <- bank_data_glasso %>% 
+success_y <- bank_data_mod %>% 
   filter(y == 1)
 
-data_under_samp <- bank_data_glasso %>% 
+data_under_samp <- bank_data_mod %>% 
   filter(y == 0) %>% 
   slice_sample(n = length(success_y$y)) %>% 
   add_row(success_y) %>% 
   slice_sample(prop = 1) #randomize the rows, before the where ordered
   
+groups = c(seq(1, 13), rep(14, 11), rep(15, 3), rep(16, 10), rep(17, 5), rep(18, 3))
+
 train_under_samp <- data_under_samp %>% 
   slice_head(prop = 0.8) #rows already randomized 
   
 test_under_samp <- data_under_samp %>% 
   slice_tail(prop = 0.2)
-
 
 #########
 #data_glasso_y <- bank_data_mod %>% 
@@ -194,27 +187,34 @@ test_under_samp <- data_under_samp %>%
 #  scale() %>% 
 #  {.[1:1000, ]} 
 ###############
-
-train_glasso_pred <- train_under_samp %>% 
+bank_data_glasso <- data_under_samp %>% 
   select(-y) %>% 
+  scale() %>% #standardized data for lasso.
+  as.data.frame() %>% 
+  add_column(y = data_under_samp$y)
+
+train_glasso_pred <- bank_data_glasso %>% 
+  select(-y) %>% 
+  slice_head(prop = 0.8) %>%  # data already randomized
   as.matrix()
 
-train_glasso_y <- train_under_samp %>% 
-  select(y) %>% 
+train_glasso_y <- bank_data_glasso %>% 
+  select(y) %>%
+  slice_head(prop = 0.8) %>% 
   mutate(y = if_else(y == 0, -1, y)) %>% #gglasso wants -1/1 responses only
   as.matrix()
     
-test_glasso_pred <- test_under_samp %>% 
+test_glasso_pred <- bank_data_glasso %>% 
   select(-y) %>% 
-  scale() 
+  slice_tail(prop = 0.2)
 
 cv_glasso <- cv.gglasso(
   train_glasso_pred,
   train_glasso_y,
   group = groups,
   loss = "logit",
-  lambda = c(seq(0.00001, 0.001, 0.00001), 0.002, 0.003, 0.004),
-  pred.loss = "loss",
+  lambda = c(seq(0.00001, 0.001, 0.00001), 0.002, 0.003, 0.004, 0.012, 0.1),
+  pred.loss = "misclass",
   nfolds = 10
 )
 plot(cv_glasso)
@@ -231,7 +231,7 @@ test <- model_glasso %>%
   predict(newx = test_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("pred" = "s0") %>% 
-  mutate(y = test_under_samp$y, pred = 1 / (1 + 2.72^-pred)) #%>% 
+  mutate(y = test_under_samp$y, pred = 1 / (1 + 2.72^-pred))# %>% 
   #{verification::roc.plot(.$y, .$pred, thresholds = seq(0, 1, 0.01))} 
 
 
@@ -291,7 +291,9 @@ data_tree_balanced <- bank_data_tree %>%
   mutate(day_of_week = sum(y) / length(data_tree_success$y)) %>% # the prop of successes in each job, mean works since 1/0 outcome
   ungroup() %>%  
   slice_sample(prop = 1) %>% #randomize
-  mutate(month = round(month, 2), month = as.factor(month))
+  mutate(across(c(job, marital, month, day_of_week), ~ round(.x, digits = 3))) %>% 
+  mutate(across(c(housing:contact, poutcome), ~ as.factor(.x))) %>% 
+  mutate(across(c(job, marital, education, month, day_of_week), ~ as.ordered(.x)))
 #data_tree_balanced #%>% distinct(prop) %>% select(prop) #%>% {sum(.$prop)}
 
 
@@ -321,8 +323,12 @@ hej <- test2 %>%
   select(-y)
 
 
-verification::roc.plot(test$y, hej)
-
+verification::roc.plot(test$y, hej, thresholds = seq(0, 1, 0.1))
+legend(x = "bottomright",          # Position
+       legend = c("Tree", "Logistic"),  # Legend texts
+       lty = c(1, 2),           # Line types
+       col = c(2, 3),           # Line colors
+       lwd = 2)
 
 ```
 
