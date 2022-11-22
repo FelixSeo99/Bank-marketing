@@ -225,8 +225,14 @@ test <- model_glasso %>%
 #
 
 #confusionMatrix(hej$s2, as.factor(test_under_samp$y), positive = "1")
-
 ```
+
+```{r, eval=FALSE}
+#png(file = "gglassso plot.png")
+#plot(cv_glasso)
+#dev.off()
+```
+
 
 ```{r}
 set.seed(990108)
@@ -276,30 +282,42 @@ data_tree_balanced <- bank_data_tree %>%
   slice_sample(prop = 1) %>% #randomize
   mutate(across(c(job, marital, month, day_of_week), ~ round(.x, digits = 3))) %>% 
   mutate(across(c(housing:contact, poutcome), ~ as.factor(.x))) %>% 
-  mutate(across(c(job, marital, education, month, day_of_week), ~ as.ordered(.x)))
+  mutate(across(c(job, marital, education, month, day_of_week), ~ as.ordered(.x))) %>% 
+  mutate(y = as.factor(y))
 
 
 
 train_tree <- data_tree_balanced %>% slice_head(n = 0.8*length(data_tree_balanced$y))
 test_tree <- data_tree_balanced %>% slice_tail(n = 0.2*length(data_tree_balanced$y))
 
-tree_parameters <- rpart.control(minsplit = 60, maxcompete = 10, maxdepth = 20, cp =  0.064363744)
+tree_parameters <- rpart.control(minsplit = 50, maxcompete = 4, maxdepth = 30, cp =  1.771479e-03)
 tree_model <- rpart(y ~ ., data = train_tree, method = "class", control = tree_parameters)
-rpart.plot(tree_model, extra = 106, cex = 0.5)
+rpart.plot(tree_model, extra = 106)
 
 
 test2 <- predict(tree_model, test_tree, type = "prob")  
 rownames(test2) <- NULL
 
-test2 %>% 
-  as.data.frame() %>% 
-  rename("yes" = "1") %>% 
-  select(yes) %>% 
-  {verification::roc.plot(test_tree$y, .$yes, thresholds = seq(0, 1, 0.2))}
+```
 
+```{r, eval = FALSE}
+# this package is said to be the original algorithm, but worse results here. cant find much on the 
+# other package on how it calculates the tree so i will use it for now. 
+
+test <- tree(y ~ ., data = train_tree, split = "gini", control = tree.control(nobs = length(train_tree$y), mindev = 0.001))
+results <- cv.tree(test, K = 10) 
+test <- prune.tree(test, k = results$k[max(which(results$dev == min(results$dev)))], method = "misclass")
+predict(test, newdata = test_tree) %>% 
+  as.data.frame() %>% 
+  rename("pred" = "1") %>% 
+  mutate(pred = if_else(pred < 0.5, 0, 1)) %>% 
+  select(pred) %>% 
+  {sum(.$pred == test_tree$y) / length(test_tree$y)}
 
 
 ```
+
+
 
 ```{r}
 
@@ -321,17 +339,18 @@ legend(x = "bottomright",          # Position
 ```
 
 ```{r}
-hej2 <- test2 %>%
+roc_curve <- test2 %>%
   as.data.frame() %>% 
-  add_column(test_tree$y) %>% 
-  rename("pred" = "1", "remove" = "0", "true" = "test_tree$y") %>% 
-  select(-remove)
-  
+  rename("pred_tree" = "1", "remove" = "0") %>% 
+  select(-remove) %>% 
+  add_column("pred_glasso" = test$pred) %>% 
+  mutate(y = test_tree$y, y = as.numeric(y), y = if_else(y == 2, 1, 0)) %>% 
+  melt_roc(d = "y", m = c("pred_tree", "pred_glasso")) %>% 
+  ggplot(aes(d = D, m = M, color = name)) +
+  geom_roc(labelround = 2) +
+  geom_abline(slope = 1, intercept = 0) 
 
-ggplot() +
-  geom_roc(data = test, aes(m = pred, d = y), n.cuts = 20, labelround = 2) +
-  geom_roc(data = hej2, aes(m = pred, d = true), n.cuts = 20) +
-  geom_abline(slope = 1, intercept = 0)
+ggsave("roc_curve.png", height = 12, units = "cm")
 ```
 
 
@@ -414,37 +433,12 @@ bank_data_mod %>%
 
 ```{r, eval = FALSE}
 # random forest training
-train_x <- bank_data_mod %>%
-  select(-y)
-  #mutate(id_col = 1:length(bank_data_mod$housing)) %>% 
-  #slice_sample(prop = 0.8) 
-
-train_y <- bank_data_mod%>% 
-  select(y) 
-
-test_x <- bank_data_mod %>%
-  mutate(id_col = 1:length(bank_data_mod$housing)) %>%   
-  anti_join(train_x, by = "id_col") 
-
-test_y <- test_x %>% 
-  select(y) %>% 
-  mutate(y = as_factor(y))
-
-train_x <- train_x %>% 
-  select(-id_col, -y)
-
-test_x <- test_x %>% 
-  select(-id_col, -y)
-
-test <- bank_data_mod %>% 
-  mutate(y = as.factor(y)) 
   
 forest <- randomForest(
   y ~ ., 
-  data = test, 
-  ntree = 500, 
-  sampsize = 0.4 * nrow(bank_data_mod),
-  nodesize = 2
+  data = train_tree, 
+  ntree = 200, ,
+  nodesize = 5
 )
 
 forest
