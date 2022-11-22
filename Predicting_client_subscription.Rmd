@@ -339,6 +339,7 @@ legend(x = "bottomright",          # Position
 ```
 
 ```{r}
+# roc for test data
 roc_curve <- test2 %>%
   as.data.frame() %>% 
   rename("pred_tree" = "1", "remove" = "0") %>% 
@@ -350,7 +351,31 @@ roc_curve <- test2 %>%
   geom_roc(labelround = 2) +
   geom_abline(slope = 1, intercept = 0) 
 
-ggsave("roc_curve.png", height = 12, units = "cm")
+ggsave("roc_curve.png")
+```
+```{r}
+# roc for train data
+test3 <- predict(tree_model, newdata = train_tree, type = "prob")
+rownames(test3) <- NULL
+
+test4 <- predict(model_glasso, newx = train_glasso_pred, type = "link") %>% 
+  as.data.frame() %>% 
+  rename("glasso" = "s0") %>% 
+  mutate(y = train_under_samp$y, glasso = 1 / (1 + 2.718^-glasso))
+
+reoc_curve_train <- test3 %>% 
+  as.data.frame() %>% 
+  select(-"0") %>% 
+  rename("tree" = "1") %>% 
+  mutate(glasso = test4$glasso, y = train_tree$y) %>%
+  mutate(y = as.numeric(y), y = if_else(y == 2, 1, 0)) %>% 
+  melt_roc(d = "y", m = c("glasso", "tree")) %>% 
+  ggplot(aes(d = D, m = M, color = name)) +
+  geom_roc(labelround = 2) +
+  geom_abline(slope = 1, intercept = 0)
+
+ggsave("roc_curve_train.png")
+  
 ```
 
 
