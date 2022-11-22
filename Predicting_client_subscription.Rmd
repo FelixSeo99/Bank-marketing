@@ -19,6 +19,7 @@ library(glmnet)
 library(gglasso)
 library(rpart)
 library(rpart.plot)
+library(plotROC)
 ```
 
 # ideas for better prediction
@@ -131,7 +132,7 @@ bank_data_mod <- bank_data %>%
     "self.employed" = "self-employed"
   ) %>% 
   select(-id_col) #%>% 
-  slice_sample(prop = 1) # randomize the data.
+  #slice_sample(prop = 1) # randomize the data.
 
 bank_data_mod
 ```
@@ -195,8 +196,8 @@ cv_glasso <- cv.gglasso(
   train_glasso_y,
   group = groups,
   loss = "logit",
-  lambda = c(seq(0.00001, 0.001, 0.00001), 0.002, 0.003, 0.004, 0.012, 0.1),
-  pred.loss = "misclass",
+  lambda = c(seq(0.00001, 0.002, 0.00001)),
+  pred.loss = "loss",
   nfolds = 10
 )
 plot(cv_glasso)
@@ -213,7 +214,7 @@ test <- model_glasso %>%
   predict(newx = test_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("pred" = "s0") %>% 
-  mutate(y = test_under_samp$y, pred = 1 / (1 + 2.72^-pred))# %>% 
+  mutate(y = test_under_samp$y, pred = 1 / (1 + 2.718^-pred))# %>% 
   #{verification::roc.plot(.$y, .$pred, thresholds = seq(0, 1, 0.01))} 
 
 
@@ -282,17 +283,21 @@ data_tree_balanced <- bank_data_tree %>%
 train_tree <- data_tree_balanced %>% slice_head(n = 0.8*length(data_tree_balanced$y))
 test_tree <- data_tree_balanced %>% slice_tail(n = 0.2*length(data_tree_balanced$y))
 
-tree_parameters <- rpart.control(minsplit = 60, maxcompete = 10, maxdepth = 5, cp = 0.005)
+tree_parameters <- rpart.control(minsplit = 60, maxcompete = 10, maxdepth = 20, cp =  0.064363744)
 tree_model <- rpart(y ~ ., data = train_tree, method = "class", control = tree_parameters)
-rpart.plot(tree_model, extra = 106)
+rpart.plot(tree_model, extra = 106, cex = 0.5)
 
 
 test2 <- predict(tree_model, test_tree, type = "prob")  
-
 rownames(test2) <- NULL
 
- #%>% 
-  #{verification::roc.plot(.$y, .$yes)} 
+test2 %>% 
+  as.data.frame() %>% 
+  rename("yes" = "1") %>% 
+  select(yes) %>% 
+  {verification::roc.plot(test_tree$y, .$yes, thresholds = seq(0, 1, 0.2))}
+
+
 
 ```
 
@@ -306,7 +311,7 @@ hej <- test2 %>%
   select(-y)
 
 
-verification::roc.plot(test$y, hej, thresholds = seq(0, 1, 0.1))
+verification::roc.plot(test$y, hej, thresholds = seq(0, 1, 0.1), lwd = 7)
 legend(x = "bottomright",          # Position
        legend = c("Tree", "Logistic"),  # Legend texts
        lty = c(1, 2),           # Line types
@@ -314,6 +319,21 @@ legend(x = "bottomright",          # Position
        lwd = 2)
 
 ```
+
+```{r}
+hej2 <- test2 %>%
+  as.data.frame() %>% 
+  add_column(test_tree$y) %>% 
+  rename("pred" = "1", "remove" = "0", "true" = "test_tree$y") %>% 
+  select(-remove)
+  
+
+ggplot() +
+  geom_roc(data = test, aes(m = pred, d = y), n.cuts = 20, labelround = 2) +
+  geom_roc(data = hej2, aes(m = pred, d = true), n.cuts = 20) +
+  geom_abline(slope = 1, intercept = 0)
+```
+
 
 
 
@@ -432,26 +452,6 @@ forest
 
 
 
-```{r, eval = FALSE}
-# recursive feature eliminaton 
-control <- rfeControl(functions = rfFuncs, method="cv", number=10)
-
-results <- bank_data_mod %>% 
-  select(-y, -euribor3m, -previous) %>%
-  head(n = 1000) %>% 
-  rfe(
-    as.factor(bank_data_mod$y[1:1000]), 
-    sizes = c(1:10),
-    metric = "Accuracy", 
-    rfeControl = control
-  )
-
-print(results)
-plot(results, type=c("g", "o"))
-#sum(predict(results, bank_data_mod[1001:2000,])$pred == bank_data_mod$y[1001:2000])   
-
-
-```
 
 
 
