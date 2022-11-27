@@ -253,13 +253,22 @@ model_glasso_default <- gglasso(
   lambda.factor = 0.0001
 )
 
-model_glasso_test <- gglasso(
+model_glasso_1se <- gglasso(
   train_glasso_pred, #only predictors chosen
   train_glasso_y,
   group = groups,
   loss = "logit",
-  lambda = 0.018269
+  lambda = cv_glasso_default$lambda.1se
 )
+
+# lambda within 1se from the model_glasso_1se
+lambda_simplest <- which(cv_glasso_default$lambda == cv_glasso_default$lambda.1se) %>% 
+  {cv_glasso_default$cvupper[.]} %>% 
+  {which.max(cv_glasso_default$cvm < .)} %>% 
+  {cv_glasso_default$lambda[.]}
+
+
+
 
 
 test <- model_glasso %>% 
@@ -287,6 +296,7 @@ test <- model_glasso %>%
 
 
 ```{r}
+
 png(file = "cv_glasso_default.png")
 plot(cv_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
 dev.off()
@@ -294,6 +304,7 @@ dev.off()
 png(file = "glasso_coefpath_default.png")
 plot(model_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
 abline(v = log(cv_glasso_default$lambda.min), lty = 2)
+abline(v = log(cv_glasso_default$lambda.1se), lty = 2)
 dev.off()
 
 test1 <- cv.gglasso(
@@ -324,12 +335,20 @@ model_glasso_default <- gglasso(
   lambda = cv_glasso_default$lambda.min
 )
 
+model_glasso_simplest <- gglasso(
+  train_glasso_pred, #only predictors chosen
+  train_glasso_y,
+  group = groups,
+  loss = "logit",
+  lambda = lambda_simplest
+)
+
 default_pred <- predict(model_glasso_default, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("glasso_def" = "s0") %>% 
   mutate(y = train_under_samp$y, glasso_def = 1 / (1 + 2.718^-glasso_def))
 
-test_pred <- predict(model_glasso_test, newx = train_glasso_pred, type = "link") %>% 
+test_pred <- predict(model_glasso_1se, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("glasso_test" = "s0") %>% 
   mutate(glasso_test = 1 / (1 + 2.718^-glasso_test))
@@ -338,9 +357,11 @@ default_pred %>%
   add_column("glasso_test" = test_pred$glasso_test) %>% 
   melt_roc(d = "y", m = c("glasso_def", "glasso_test")) %>% 
   ggplot(aes(d = D, m = M, color = name)) + 
-  geom_roc(labelround = 2, n.cuts = 20) +
+  geom_roc(labelround = 1, n.cuts = 12) +
   geom_abline(slope = 1, intercept = 0) +
-  labs(x = "HF")
+  labs(x = "1 - Specificity", y = "Sensitivity") 
+
+ggsave("roc_curve_glasso.png")
 
 ```
 
@@ -400,14 +421,22 @@ data_tree_balanced <- bank_data_tree %>%
 train_tree <- data_tree_balanced %>% slice_head(n = 0.8*length(data_tree_balanced$y))
 test_tree <- data_tree_balanced %>% slice_tail(n = 0.2*length(data_tree_balanced$y))
 
-tree_parameters <- rpart.control(minsplit = 50, maxcompete = 4, maxdepth = 30, cp =  1.771479e-03)
+# build large tree to later prune.
+tree_parameters <- rpart.control(minsplit = 30, maxcompete = 5, maxdepth = 30, cp =  0.000001)
 tree_model <- rpart(y ~ ., data = train_tree, method = "class", control = tree_parameters)
-rpart.plot(tree_model, extra = 106)
 
+min_err <- tree_model$cptable[which.min(tree_model$cptable[, "xerror"]), "CP"]
 
-test2 <- predict(tree_model, test_tree, type = "prob")  
-rownames(test2) <- NULL
+pruned_tree_opt <- prune(tree_model, cp = min_err)
+pruned_tree_1se <- prune(tree_model, cp = 1.476233e-03)
 
+png(filename = "pruned_tree_opt.png", res = 150)
+rpart.plot(pruned_tree_opt, extra = 106, tweak = 1.2)
+dev.off()
+
+png(filename = "pruned_tree_1se.png", res = 150)
+rpart.plot(pruned_tree_1se, extra = 106, tweak = 1.1)
+dev.off()
 ```
 
 ```{r, eval = FALSE}
@@ -415,7 +444,7 @@ rownames(test2) <- NULL
 # other package on how it calculates the tree so i will use it for now. 
 
 test <- tree(y ~ ., data = train_tree, split = "gini", control = tree.control(nobs = length(train_tree$y), mindev = 0.001))
-results <- cv.tree(test, K = 10) 
+results <- prune.tree(test, method = "misclass")
 test <- prune.tree(test, k = results$k[max(which(results$dev == min(results$dev)))], method = "misclass")
 predict(test, newdata = test_tree) %>% 
   as.data.frame() %>% 
@@ -428,8 +457,9 @@ predict(test, newdata = test_tree) %>%
 ```
 
 
-
 ```{r}
+test2 <- predict(tree_model, test_tree, type = "prob")  
+rownames(test2) <- NULL
 
 hej <- test2 %>%  
   as.data.frame() %>%
