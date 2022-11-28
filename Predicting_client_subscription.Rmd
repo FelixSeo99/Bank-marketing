@@ -194,43 +194,35 @@ test_glasso_pred <- bank_data_glasso %>%
 
 
 #################################
-frobenius_norm <- c(
-  sqrt(test_glasso_pred[, 1] %*% test_glasso_pred[, 1]),
-  sqrt(test_glasso_pred[, 2] %*% test_glasso_pred[, 2]),
-  sqrt(test_glasso_pred[, 3] %*% test_glasso_pred[, 3]),
-  sqrt(test_glasso_pred[, 4] %*% test_glasso_pred[, 4]),
-  sqrt(test_glasso_pred[, 5] %*% test_glasso_pred[, 5]),
-  sqrt(test_glasso_pred[, 6] %*% test_glasso_pred[, 6]),
-  sqrt(test_glasso_pred[, 7] %*% test_glasso_pred[, 7]),
-  sqrt(test_glasso_pred[, 8] %*% test_glasso_pred[, 8]),
-  sqrt(test_glasso_pred[, 9] %*% test_glasso_pred[, 9]),
-  sqrt(test_glasso_pred[, 10] %*% test_glasso_pred[, 10]),
-  sqrt(test_glasso_pred[, 11] %*% test_glasso_pred[, 11]),
-  sqrt(test_glasso_pred[, 12] %*% test_glasso_pred[, 12]),
-  sqrt(test_glasso_pred[, 13] %*% test_glasso_pred[, 13]),
-  sqrt(sum(test_glasso_pred[, 14:24]^2)),
-  sqrt(sum(test_glasso_pred[, 25:27]^2)),
-  sqrt(sum(test_glasso_pred[, 28:37]^2)),
-  sqrt(sum(test_glasso_pred[, 38:42]^2)),
-  sqrt(sum(test_glasso_pred[, 43:45]^2))
-)
+#frobenius_norm <- c(
+#  sqrt(test_glasso_pred[, 1] %*% test_glasso_pred[, 1]),
+#  sqrt(test_glasso_pred[, 2] %*% test_glasso_pred[, 2]),
+ # sqrt(test_glasso_pred[, 3] %*% test_glasso_pred[, 3]),
+#  sqrt(test_glasso_pred[, 4] %*% test_glasso_pred[, 4]),
+#  sqrt(test_glasso_pred[, 5] %*% test_glasso_pred[, 5]),
+#  sqrt(test_glasso_pred[, 6] %*% test_glasso_pred[, 6]),
+#  sqrt(test_glasso_pred[, 7] %*% test_glasso_pred[, 7]),
+#  sqrt(test_glasso_pred[, 8] %*% test_glasso_pred[, 8]),
+#  sqrt(test_glasso_pred[, 9] %*% test_glasso_pred[, 9]),
+#  sqrt(test_glasso_pred[, 10] %*% test_glasso_pred[, 10]),
+#  sqrt(test_glasso_pred[, 11] %*% test_glasso_pred[, 11]),
+#  sqrt(test_glasso_pred[, 12] %*% test_glasso_pred[, 12]),
+#  sqrt(test_glasso_pred[, 13] %*% test_glasso_pred[, 13]),
+#  sqrt(sum(test_glasso_pred[, 14:24]^2)),
+#  sqrt(sum(test_glasso_pred[, 25:27]^2)),
+#  sqrt(sum(test_glasso_pred[, 28:37]^2)),
+#  sqrt(sum(test_glasso_pred[, 38:42]^2)),
+#  sqrt(sum(test_glasso_pred[, 43:45]^2))
+#)
 
-cv_glasso_frobenius <- cv.gglasso(  # Frobenius norm for pf.
-  train_glasso_pred,
-  train_glasso_y,
-  group = groups,
-  loss = "logit",
-  pred.loss = "loss",
-  nfolds = 10,
-  pf = frobenius_norm)
-  
-model_glasso_frobenius <- gglasso(
-  train_glasso_pred, #only predictors chosen
-  train_glasso_y,
-  group = groups,
-  loss = "logit",
-  lambda = seq(0.000005, 0.5, 0.001),
-)  
+#cv_glasso_frobenius <- cv.gglasso(  # Frobenius norm for pf.
+#  train_glasso_pred,
+#  train_glasso_y,
+#  group = groups,
+#  loss = "logit",
+# pred.loss = "loss",
+#  nfolds = 10,
+#  pf = frobenius_norm)
  
 #############################
 
@@ -277,53 +269,21 @@ test <- model_glasso %>%
   rename("pred" = "s0") %>% 
   mutate(y = test_under_samp$y, pred = 1 / (1 + 2.718^-pred))# %>% 
   #{verification::roc.plot(.$y, .$pred, thresholds = seq(0, 1, 0.01))} 
-
-
-#test_pred %>% 
- # as.data.frame() %>%
- # select(s2) %>% 
-#  mutate(s2 = 1 / (1 + 2.72^(-s2)), s2 = if_else(s2 > 0.4, 1, 0), s2 = as.factor(s2))  
-#
-
-#confusionMatrix(hej$s2, as.factor(test_under_samp$y), positive = "1")
-
-
-
 ```
-
-
-
-
 
 ```{r}
 
 png(file = "cv_glasso_default.png")
 plot(cv_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
+abline(v = log(lambda_simplest), lty = 2, col = "lightgreen")
 dev.off()
 
 png(file = "glasso_coefpath_default.png")
 plot(model_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
 abline(v = log(cv_glasso_default$lambda.min), lty = 2)
 abline(v = log(cv_glasso_default$lambda.1se), lty = 2)
+abline(v = log(lambda_simplest), lty = 2, col = "lightgreen")
 dev.off()
-
-test1 <- cv.gglasso(
-  train_glasso_pred,
-  train_glasso_y,
-  group = groups,
-  loss = "logit",
-  pred.loss = "loss",
-  nfolds = 10,
-  pf = c(rep(1, 13), 410, 3, 10, 5, 3)
-)
-plot(test1)
-
-test2 <- gglasso(
-  train_glasso_pred,
-  train_glasso_y,
-  group = groups,
-  loss = "logit"
-)
 ```
 
 ```{r}
@@ -348,20 +308,35 @@ default_pred <- predict(model_glasso_default, newx = train_glasso_pred, type = "
   rename("glasso_def" = "s0") %>% 
   mutate(y = train_under_samp$y, glasso_def = 1 / (1 + 2.718^-glasso_def))
 
-test_pred <- predict(model_glasso_1se, newx = train_glasso_pred, type = "link") %>% 
+glasso_1se_pred <- predict(model_glasso_1se, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
-  rename("glasso_test" = "s0") %>% 
-  mutate(glasso_test = 1 / (1 + 2.718^-glasso_test))
+  rename("glasso_1se" = "s0") %>% 
+  mutate(glasso_1se = 1 / (1 + 2.718^-glasso_1se))
 
-default_pred %>% 
-  add_column("glasso_test" = test_pred$glasso_test) %>% 
-  melt_roc(d = "y", m = c("glasso_def", "glasso_test")) %>% 
+roc_curve_def_1se <- default_pred %>% 
+  add_column("glasso_1se" = glasso_1se_pred$glasso_1se) %>% 
+  melt_roc(d = "y", m = c("glasso_def", "glasso_1se")) %>% 
   ggplot(aes(d = D, m = M, color = name)) + 
-  geom_roc(labelround = 1, n.cuts = 12) +
+  geom_roc(labelround = 1, labelsize = 2.5, cutoffs.at = seq(1, 0.2, -0.1)) +
   geom_abline(slope = 1, intercept = 0) +
   labs(x = "1 - Specificity", y = "Sensitivity") 
 
-ggsave("roc_curve_glasso.png")
+ggsave("roc_curve_def_1se.png")
+
+simplest_pred <- predict(model_glasso_simplest, newx = train_glasso_pred, type = "link") %>% 
+  as.data.frame() %>% 
+  rename("glasso_simple" = "s0") %>% 
+  mutate(y = train_under_samp$y, glasso_simple = 1 / (1 + 2.718^-glasso_simple))
+
+roc_curve_1se_simplest <- simplest_pred %>% 
+  add_column("glasso_1se" = glasso_1se_pred$glasso_1se) %>% 
+  melt_roc(d = "y", m = c("glasso_1se", "glasso_simple")) %>% 
+  ggplot(aes(d = D, m = M, color = name)) + 
+  geom_roc(labelround = 2, labelsize = 1.5) +
+  geom_abline(slope = 1, intercept = 0) +
+  labs(x = "1 - Specificity", y = "Sensitivity")
+
+ggsave("roc_curve_simple_1se.png")
 
 ```
 
@@ -417,7 +392,6 @@ data_tree_balanced <- bank_data_tree %>%
   mutate(y = as.factor(y))
 
 
-
 train_tree <- data_tree_balanced %>% slice_head(n = 0.8*length(data_tree_balanced$y))
 test_tree <- data_tree_balanced %>% slice_tail(n = 0.2*length(data_tree_balanced$y))
 
@@ -428,7 +402,7 @@ tree_model <- rpart(y ~ ., data = train_tree, method = "class", control = tree_p
 min_err <- tree_model$cptable[which.min(tree_model$cptable[, "xerror"]), "CP"]
 
 pruned_tree_opt <- prune(tree_model, cp = min_err)
-pruned_tree_1se <- prune(tree_model, cp = 1.476233e-03)
+pruned_tree_1se <- prune(tree_model, cp = 4.133451e-03)
 
 png(filename = "pruned_tree_opt.png", res = 150)
 rpart.plot(pruned_tree_opt, extra = 106, tweak = 1.2)
@@ -436,6 +410,10 @@ dev.off()
 
 png(filename = "pruned_tree_1se.png", res = 150)
 rpart.plot(pruned_tree_1se, extra = 106, tweak = 1.1)
+dev.off()
+
+png(filename = "cp_plot_tree.png")
+plotcp(tree_model)
 dev.off()
 ```
 
@@ -496,15 +474,15 @@ ggsave("roc_curve.png")
 
 ```{r}
 # roc for train data
-test3 <- predict(tree_model, newdata = train_tree, type = "prob")
+test3 <- predict(pruned_tree_1se, newdata = train_tree, type = "prob")
 rownames(test3) <- NULL
 
-test4 <- predict(model_glasso, newx = train_glasso_pred, type = "link") %>% 
+test4 <- predict(model_glasso_simplest, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("glasso" = "s0") %>% 
   mutate(y = train_under_samp$y, glasso = 1 / (1 + 2.718^-glasso))
 
-reoc_curve_train <- test3 %>% 
+roc_curve_tree_glasso <- test3 %>% 
   as.data.frame() %>% 
   select(-"0") %>% 
   rename("tree" = "1") %>% 
@@ -512,10 +490,13 @@ reoc_curve_train <- test3 %>%
   mutate(y = as.numeric(y), y = if_else(y == 2, 1, 0)) %>% 
   melt_roc(d = "y", m = c("glasso", "tree")) %>% 
   ggplot(aes(d = D, m = M, color = name)) +
-  geom_roc(labelround = 2) +
-  geom_abline(slope = 1, intercept = 0)
+  geom_roc(labelround = 2, labelsize = 2.5, cutoffs.at = seq(1, 0.3, -0.1)) +
+  geom_abline(slope = 1, intercept = 0) +
+  labs(x = "1 - Specificity", y = "Sensitivity")
 
-ggsave("roc_curve_train.png")
+roc_curve_tree_glasso
+
+ggsave("roc_curve_tree_glasso.png", width = 7.5, height = 7.5)
   
 ```
 
