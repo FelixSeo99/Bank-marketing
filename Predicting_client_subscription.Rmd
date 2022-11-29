@@ -151,7 +151,7 @@ data_under_samp <- bank_data_mod %>%
   add_row(success_y) %>% 
   slice_sample(prop = 1) #randomize the rows, before they where ordered
   
-groups = c(seq(1, 13), rep(14, 11), rep(15, 3), rep(16, 10), rep(17, 5), rep(18, 3))
+groups = c(seq(1, 13), rep(14, 10), rep(15, 2), rep(16, 9), rep(17, 4), rep(18, 2))
 
 train_under_samp <- data_under_samp %>% 
   slice_head(prop = 0.8) #rows already randomized 
@@ -172,7 +172,7 @@ test_under_samp <- data_under_samp %>%
 #  {.[1:1000, ]} 
 ###############
 bank_data_glasso <- data_under_samp %>% 
-  select(-y) %>% 
+  select(-y, -student, -divorced, -dec, -fri, -nonexistent) %>% # k classes to k-1 dummy 
   scale() %>% #standardized data for lasso.
   as.data.frame() %>% 
   add_column(y = data_under_samp$y)
@@ -260,29 +260,23 @@ lambda_simplest <- which(cv_glasso_default$lambda == cv_glasso_default$lambda.1s
   {cv_glasso_default$lambda[.]}
 
 
+bank_data_mod %>% 
+  filter(emp.var.rate == -3, y == 1)
 
-
-
-test <- model_glasso %>% 
-  predict(newx = test_glasso_pred, type = "link") %>% 
-  as.data.frame() %>% 
-  rename("pred" = "s0") %>% 
-  mutate(y = test_under_samp$y, pred = 1 / (1 + 2.718^-pred))# %>% 
-  #{verification::roc.plot(.$y, .$pred, thresholds = seq(0, 1, 0.01))} 
 ```
 
 ```{r}
 
 png(file = "cv_glasso_default.png")
 plot(cv_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
-abline(v = log(lambda_simplest), lty = 2, col = "lightgreen")
+abline(v = log(lambda_simplest), lty = 2)
 dev.off()
 
 png(file = "glasso_coefpath_default.png")
 plot(model_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
-abline(v = log(cv_glasso_default$lambda.min), lty = 2)
-abline(v = log(cv_glasso_default$lambda.1se), lty = 2)
-abline(v = log(lambda_simplest), lty = 2, col = "lightgreen")
+abline(v = log(cv_glasso_default$lambda.min), lty = 3)
+abline(v = log(cv_glasso_default$lambda.1se), lty = 3)
+abline(v = log(lambda_simplest), lty = 2)
 dev.off()
 ```
 
@@ -332,7 +326,7 @@ roc_curve_1se_simplest <- simplest_pred %>%
   add_column("glasso_1se" = glasso_1se_pred$glasso_1se) %>% 
   melt_roc(d = "y", m = c("glasso_1se", "glasso_simple")) %>% 
   ggplot(aes(d = D, m = M, color = name)) + 
-  geom_roc(labelround = 2, labelsize = 1.5) +
+  geom_roc(labelround = 2, labelsize = 2.5) +
   geom_abline(slope = 1, intercept = 0) +
   labs(x = "1 - Specificity", y = "Sensitivity")
 
@@ -413,7 +407,7 @@ rpart.plot(pruned_tree_1se, extra = 106, tweak = 1.1)
 dev.off()
 
 png(filename = "cp_plot_tree.png")
-plotcp(tree_model)
+plotcp(tree_model) 
 dev.off()
 ```
 
@@ -430,7 +424,6 @@ predict(test, newdata = test_tree) %>%
   mutate(pred = if_else(pred < 0.5, 0, 1)) %>% 
   select(pred) %>% 
   {sum(.$pred == test_tree$y) / length(test_tree$y)}
-
 
 ```
 
