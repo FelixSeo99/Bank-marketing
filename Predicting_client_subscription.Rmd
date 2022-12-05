@@ -260,8 +260,6 @@ lambda_simplest <- which(cv_glasso_default$lambda == cv_glasso_default$lambda.1s
   {cv_glasso_default$lambda[.]}
 
 
-bank_data_mod %>% 
-  filter(emp.var.rate == -3, y == 1)
 
 ```
 
@@ -269,14 +267,14 @@ bank_data_mod %>%
 
 png(file = "cv_glasso_default.png")
 plot(cv_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
-abline(v = log(lambda_simplest), lty = 2)
+#abline(v = log(lambda_simplest), lty = 2)
 dev.off()
 
 png(file = "glasso_coefpath_default.png")
 plot(model_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
 abline(v = log(cv_glasso_default$lambda.min), lty = 3)
 abline(v = log(cv_glasso_default$lambda.1se), lty = 3)
-abline(v = log(lambda_simplest), lty = 2)
+#abline(v = log(lambda_simplest), lty = 2)
 dev.off()
 ```
 
@@ -396,14 +394,14 @@ tree_model <- rpart(y ~ ., data = train_tree, method = "class", control = tree_p
 min_err <- tree_model$cptable[which.min(tree_model$cptable[, "xerror"]), "CP"]
 
 pruned_tree_opt <- prune(tree_model, cp = min_err)
-pruned_tree_1se <- prune(tree_model, cp = 4.133451e-03)
+pruned_tree_1se <- prune(tree_model, cp = 3.247712e-03)
 
 png(filename = "pruned_tree_opt.png", res = 150)
 rpart.plot(pruned_tree_opt, extra = 106, tweak = 1.2)
 dev.off()
 
 png(filename = "pruned_tree_1se.png", res = 150)
-rpart.plot(pruned_tree_1se, extra = 106, tweak = 1.1)
+rpart.plot(pruned_tree_1se, extra = 106, tweak = 1)
 dev.off()
 
 png(filename = "cp_plot_tree.png")
@@ -583,6 +581,12 @@ forest <- randomForest(
 )
 
 forest
+
+bank_data %>% 
+  filter(y == "yes") %>% 
+  group_by(nr.employed) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(nr.employed))
 ```
 
 
