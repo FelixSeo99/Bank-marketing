@@ -192,6 +192,11 @@ test_glasso_pred <- bank_data_glasso %>%
   select(-y) %>% 
   slice_tail(prop = 0.2)
 
+test_glasso_y <- bank_data_glasso %>% 
+  select(y) %>%
+  slice_tail(prop = 0.2) %>% 
+  mutate(y = if_else(y == 0, -1, y)) %>% #gglasso wants -1/1 responses only
+  as.matrix()
 
 #################################
 #frobenius_norm <- c(
@@ -407,6 +412,11 @@ dev.off()
 png(filename = "cp_plot_tree.png")
 plotcp(tree_model) 
 dev.off()
+
+
+# info on the splits, variable importance etc. 
+summary(pruned_tree_1se)
+
 ```
 
 ```{r, eval = FALSE}
@@ -481,16 +491,42 @@ roc_curve_tree_glasso <- test3 %>%
   mutate(y = as.numeric(y), y = if_else(y == 2, 1, 0)) %>% 
   melt_roc(d = "y", m = c("glasso", "tree")) %>% 
   ggplot(aes(d = D, m = M, color = name)) +
-  geom_roc(labelround = 2, labelsize = 2.5, cutoffs.at = seq(1, 0.3, -0.1)) +
+  geom_roc(labelround = 2, labelsize = 2.5, cutoffs.at = 0.5)+ #seq(1, 0.3, -0.1)) +
   geom_abline(slope = 1, intercept = 0) +
   labs(x = "1 - Specificity", y = "Sensitivity")
 
 roc_curve_tree_glasso
 
-ggsave("roc_curve_tree_glasso.png", width = 7.5, height = 7.5)
+ggsave("roc_curve_tree_glasso.png", width = 7, height = 7)
   
 ```
 
+```{r}
+# confusion matrices for the tree and lasso
+test_pred_tree <- predict(pruned_tree_1se, newdata = test_tree[, -19], type = "prob")  
+rownames(test_pred_tree) <- NULL  
+test_pred_tree %>% 
+  as.data.frame() %>% 
+  select(- "0") %>%
+  rename("pred" = "1") %>% 
+  mutate(pred = if_else(pred >= 0.53, 1, 0), pred = as.factor(pred), ref = test_tree$y) %>% 
+  {confusionMatrix(.$pred, .$ref)}
+
+test_glasso_pred %>%  
+  {predict(model_glasso_simplest, newx = ., type = "link")} %>% 
+  as.data.frame() %>% 
+  rename("pred" = "s0") %>% 
+  mutate(
+    ref = as.data.frame(test_glasso_y)$y, 
+    pred = 1 / (1 + 2.718^-pred),
+    pred = if_else(pred >= 0.5, 1, -1),
+    pred = as.factor(pred),
+    ref = as.factor(ref)
+  ) %>% 
+  {confusionMatrix(.$pred, .$ref)}
+
+
+```
 
 
 
