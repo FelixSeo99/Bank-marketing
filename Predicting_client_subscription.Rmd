@@ -491,7 +491,7 @@ roc_curve_tree_glasso <- test3 %>%
   mutate(y = as.numeric(y), y = if_else(y == 2, 1, 0)) %>% 
   melt_roc(d = "y", m = c("glasso", "tree")) %>% 
   ggplot(aes(d = D, m = M, color = name)) +
-  geom_roc(labelround = 2, labelsize = 2.5, cutoffs.at = 0.5)+ #seq(1, 0.3, -0.1)) +
+  geom_roc(labelround = 2, labelsize = 2.5, cutoffs.at = c(0.5, 0.36)) + #seq(1, 0.3, -0.1)) +
   geom_abline(slope = 1, intercept = 0) +
   labs(x = "1 - Specificity", y = "Sensitivity")
 
@@ -509,8 +509,8 @@ test_pred_tree %>%
   as.data.frame() %>% 
   select(- "0") %>%
   rename("pred" = "1") %>% 
-  mutate(pred = if_else(pred >= 0.53, 1, 0), pred = as.factor(pred), ref = test_tree$y) %>% 
-  {confusionMatrix(.$pred, .$ref)}
+  mutate(pred = if_else(pred >= 0.33, 1, 0), pred = as.factor(pred), ref = test_tree$y) %>% 
+  {confusionMatrix(.$pred, .$ref, positive = "1")}
 
 test_glasso_pred %>%  
   {predict(model_glasso_simplest, newx = ., type = "link")} %>% 
@@ -519,11 +519,11 @@ test_glasso_pred %>%
   mutate(
     ref = as.data.frame(test_glasso_y)$y, 
     pred = 1 / (1 + 2.718^-pred),
-    pred = if_else(pred >= 0.5, 1, -1),
+    pred = if_else(pred >= 0.33, 1, -1),
     pred = as.factor(pred),
     ref = as.factor(ref)
   ) %>% 
-  {confusionMatrix(.$pred, .$ref)}
+  {confusionMatrix(.$pred, .$ref, positive = "1")} 
 
 
 ```
