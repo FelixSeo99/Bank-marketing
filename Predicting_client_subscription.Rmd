@@ -303,7 +303,7 @@ model_glasso_simplest <- gglasso(
 default_pred <- predict(model_glasso_default, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("glasso_def" = "s0") %>% 
-  mutate(y = train_under_samp$y, glasso_def = 1 / (1 + 2.718^-glasso_def))
+  mutate(y = train_under_samp$y,  glass_def = 1 / (1 + 2.718^-glasso_def))
 
 glasso_1se_pred <- predict(model_glasso_1se, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
@@ -311,10 +311,11 @@ glasso_1se_pred <- predict(model_glasso_1se, newx = train_glasso_pred, type = "l
   mutate(glasso_1se = 1 / (1 + 2.718^-glasso_1se))
 
 roc_curve_def_1se <- default_pred %>% 
-  add_column("glasso_1se" = glasso_1se_pred$glasso_1se) %>% 
-  melt_roc(d = "y", m = c("glasso_def", "glasso_1se")) %>% 
+  add_column("glasso_1se" = glasso_1se_pred$glasso_1se) %>%
+  rename("Model 1" = "glasso_def", "Model 2" = "glasso_1se") %>%  
+  melt_roc(d = "y", m = c("Model 1", "Model 2")) %>% 
   ggplot(aes(d = D, m = M, color = name)) + 
-  geom_roc(labelround = 1, labelsize = 2.5, cutoffs.at = seq(1, 0.2, -0.1)) +
+  geom_roc(labelround = 1, labelsize = 2.5, cutoffs.at = 0.5) +
   geom_abline(slope = 1, intercept = 0) +
   labs(x = "1 - Specificity", y = "Sensitivity") 
 
@@ -436,26 +437,6 @@ predict(test, newdata = test_tree) %>%
 ```
 
 
-```{r}
-test2 <- predict(tree_model, test_tree, type = "prob")  
-rownames(test2) <- NULL
-
-hej <- test2 %>%  
-  as.data.frame() %>%
-  rename("no" = "0", "yes" = "1") %>%  
-  select(-no) %>% 
-  add_column(test) %>% 
-  select(-y)
-
-
-verification::roc.plot(test$y, hej, thresholds = seq(0, 1, 0.1), lwd = 7)
-legend(x = "bottomright",          # Position
-       legend = c("Tree", "Logistic"),  # Legend texts
-       lty = c(1, 2),           # Line types
-       col = c(2, 3),           # Line colors
-       lwd = 2)
-
-```
 
 ```{r}
 # roc for test data
@@ -478,7 +459,7 @@ ggsave("roc_curve.png")
 test3 <- predict(pruned_tree_1se, newdata = train_tree, type = "prob")
 rownames(test3) <- NULL
 
-test4 <- predict(model_glasso_simplest, newx = train_glasso_pred, type = "link") %>% 
+test4 <- predict(model_glasso_1se, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("glasso" = "s0") %>% 
   mutate(y = train_under_samp$y, glasso = 1 / (1 + 2.718^-glasso))
@@ -486,10 +467,10 @@ test4 <- predict(model_glasso_simplest, newx = train_glasso_pred, type = "link")
 roc_curve_tree_glasso <- test3 %>% 
   as.data.frame() %>% 
   select(-"0") %>% 
-  rename("tree" = "1") %>% 
-  mutate(glasso = test4$glasso, y = train_tree$y) %>%
+  rename("Classification tree" = "1") %>% 
+  mutate("group-lasso" = test4$glasso, y = train_tree$y) %>%
   mutate(y = as.numeric(y), y = if_else(y == 2, 1, 0)) %>% 
-  melt_roc(d = "y", m = c("glasso", "tree")) %>% 
+  melt_roc(d = "y", m = c("group-lasso", "Classification tree")) %>% 
   ggplot(aes(d = D, m = M, color = name)) +
   geom_roc(labelround = 2, labelsize = 2.5, cutoffs.at = c(0.5, 0.36)) + #seq(1, 0.3, -0.1)) +
   geom_abline(slope = 1, intercept = 0) +
@@ -498,7 +479,9 @@ roc_curve_tree_glasso <- test3 %>%
 roc_curve_tree_glasso
 
 ggsave("roc_curve_tree_glasso.png", width = 7, height = 7)
-  
+
+model_glasso_1se$beta  #coefficients for 1-se group lasso.
+model_glasso_1se$b0   # THe intercept term  
 ```
 
 ```{r}
@@ -513,7 +496,7 @@ test_pred_tree %>%
   {confusionMatrix(.$pred, .$ref, positive = "1")}
 
 test_glasso_pred %>%  
-  {predict(model_glasso_simplest, newx = ., type = "link")} %>% 
+  {predict(model_glasso_1se, newx = ., type = "link")} %>% 
   as.data.frame() %>% 
   rename("pred" = "s0") %>% 
   mutate(
