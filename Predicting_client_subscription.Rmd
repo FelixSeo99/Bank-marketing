@@ -23,81 +23,15 @@ library(plotROC)
 library(latex2exp)
 ```
 
-# ideas for better prediction
-
-add a column with information if it is the first or second phone call as the same customer often was contacted twice to check if term deposit. 
-
-I DONT HAVE ACCESS TO THE ENTIRE DATASET SO I CANNOT SPLIT THE DATA IN TRAIN (4 YEARS) AND TEST (1 YEAR) AS TIME DEPENDENT. THIS IS BECAUSE MY DATA IS VERY UNBALENCE IN THE SENSE THAT ALL THE Y =1 IS IN THE TEST SET. NOTE THAT THE DATA IS ORDERED BY YEAR AND MONTH, WHICH WOULD HAVE BEEN CONVINIENT IF I DID NOT HAVE UNBALANCED DATA........
-
-## Data preparation
-
-Starting with looking at the data, the following attribute information follows [Moro et al., 2014].
-
-### input variables:
-bank client data:
-
-* 1 - age (numeric)
-
-* 2 - job : type of job (categorical: 'admin.','blue-collar','entrepreneur','housemaid','management','retired','self-employed','services','student','technician','unemployed','unknown')
-
-* 3 - marital : marital status (categorical: 'divorced','married','single','unknown'; note: 'divorced' means divorced or widowed)
-
-* 4 - education (categorical: 'basic.4y','basic.6y','basic.9y','high.school','illiterate','professional.course','university.degree','unknown')
-
-* 5 - default: has credit in default? (categorical: 'no','yes','unknown')
-
-* 6 - housing: has housing loan? (categorical: 'no','yes','unknown')
-
-* 7 - loan: has personal loan? (categorical: 'no','yes','unknown')
-
-related with the last contact of the current campaign:
-
-* 8 - contact: contact communication type (categorical: 'cellular','telephone')
-
-* 9 - month: last contact month of year (categorical: 'jan', 'feb', 'mar', ..., 'nov', 'dec')
-
-* 10 - day_of_week: last contact day of the week (categorical: 'mon','tue','wed','thu','fri')
-
-* 11 - duration: last contact duration, in seconds (numeric). Important note: this attribute highly affects the output target (e.g., if duration=0 then y='no'). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model.
-
-other attributes:
-
-* 12 - campaign: number of contacts performed during this campaign and for this client (numeric, includes last contact)
-
-* 13 - pdays: number of days that passed by after the client was last contacted from a previous campaign (numeric; 999 means client was not previously contacted)
-
-* 14 - previous: number of contacts performed before this campaign and for this client (numeric)
-
-* 15 - poutcome: outcome of the previous marketing campaign (categorical: 'failure','nonexistent','success')
-
-social and economic context attributes
-
-* 16 - emp.var.rate: employment variation rate - quarterly indicator (numeric)
-
-* 17 - cons.price.idx: consumer price index - monthly indicator (numeric)
-
-* 18 - cons.conf.idx: consumer confidence index - monthly indicator (numeric)
-
-* 19 - euribor3m: euribor 3 month rate - daily indicator (numeric)
-
-* 20 - nr.employed: number of employees - quarterly indicator (numeric)
-
-Output variable (desired target):
-
-* 21 - y - has the client subscribed a term deposit? (binary: 'yes','no')
-
-Seen in the attribute information the 11th input variable is not desired for use in an predictive model, why it is removed. The default attribute is also removed since it only has 3 realizations of people with credit in default. This huge difference in group size will not contribute to the predicative power of the model. Attributes 2 to 7 all have the risk of containing missing values labeled "unknown". The data containing any of the missing values in attributes 2 to 7 are removed, which ended up being roughly 3000 instances (still the dataset contains approximately 38000 instances). For the categorical variables the appropriate encoding is conducted. The binary variables are transformed to 0 and 1 outcomes. The ordinal or nominal category classification for the variables are debatable. The education variable is easily classified as an ordinal type variable why we will use simple ordinal encoding. Variables like marital status, last contact day of the week and month are classified as nominal variables and one-hot encoding is conducted. The latter is arguably nominal in this context as the month seems not to have an natural ordering for this classification task.      
-
-
 ```{r}
 bank_data <- read_delim("Data/bank_additional_full.csv", delim = ";")
 ```
 
 
 ```{r}
-#trying to get data on nice format, one-hot encoding. 
+# data preparation 
 bank_data_mod <- bank_data %>% 
-  dplyr::select(-duration, -default) %>% #probably include default?????
+  dplyr::select(-duration, -default) %>% 
   mutate(
     temp1 = 1, 
     temp2 = 1,
@@ -132,14 +66,13 @@ bank_data_mod <- bank_data %>%
     "blue.collar" = "blue-collar",  #don´t like variables with -. 
     "self.employed" = "self-employed"
   ) %>% 
-  select(-id_col) #%>% 
-  #slice_sample(prop = 1) # randomize the data.
+  select(-id_col) 
 
 bank_data_mod
 ```
 
 ```{r}
-#The gglasso package. group lasso method. I try under sampling the data
+#The gglasso package. group lasso method. I try under-sampling the data
 set.seed(990108)
 
 success_y <- bank_data_mod %>% 
@@ -159,18 +92,6 @@ train_under_samp <- data_under_samp %>%
 test_under_samp <- data_under_samp %>% 
   slice_tail(prop = 0.2)
 
-#########
-#data_glasso_y <- bank_data_mod %>% 
-#  select(y) %>%
-#  slice_head(n = 1000) %>%   
-#  mutate(y = if_else(y == 0, -1, y)) %>% #gglasso wants -1 1 responses only
-#  as.matrix()
-  
-#data_glasso_pred <- bank_data_mod %>%
-#  select(-y) %>%
-#  scale() %>% 
-#  {.[1:1000, ]} 
-###############
 bank_data_glasso <- data_under_samp %>% 
   select(-y, -student, -divorced, -dec, -fri, -nonexistent) %>% # k classes to k-1 dummy 
   scale() %>% #standardized data for lasso.
@@ -198,41 +119,7 @@ test_glasso_y <- bank_data_glasso %>%
   mutate(y = if_else(y == 0, -1, y)) %>% #gglasso wants -1/1 responses only
   as.matrix()
 
-#################################
-#frobenius_norm <- c(
-#  sqrt(test_glasso_pred[, 1] %*% test_glasso_pred[, 1]),
-#  sqrt(test_glasso_pred[, 2] %*% test_glasso_pred[, 2]),
- # sqrt(test_glasso_pred[, 3] %*% test_glasso_pred[, 3]),
-#  sqrt(test_glasso_pred[, 4] %*% test_glasso_pred[, 4]),
-#  sqrt(test_glasso_pred[, 5] %*% test_glasso_pred[, 5]),
-#  sqrt(test_glasso_pred[, 6] %*% test_glasso_pred[, 6]),
-#  sqrt(test_glasso_pred[, 7] %*% test_glasso_pred[, 7]),
-#  sqrt(test_glasso_pred[, 8] %*% test_glasso_pred[, 8]),
-#  sqrt(test_glasso_pred[, 9] %*% test_glasso_pred[, 9]),
-#  sqrt(test_glasso_pred[, 10] %*% test_glasso_pred[, 10]),
-#  sqrt(test_glasso_pred[, 11] %*% test_glasso_pred[, 11]),
-#  sqrt(test_glasso_pred[, 12] %*% test_glasso_pred[, 12]),
-#  sqrt(test_glasso_pred[, 13] %*% test_glasso_pred[, 13]),
-#  sqrt(sum(test_glasso_pred[, 14:24]^2)),
-#  sqrt(sum(test_glasso_pred[, 25:27]^2)),
-#  sqrt(sum(test_glasso_pred[, 28:37]^2)),
-#  sqrt(sum(test_glasso_pred[, 38:42]^2)),
-#  sqrt(sum(test_glasso_pred[, 43:45]^2))
-#)
-
-#cv_glasso_frobenius <- cv.gglasso(  # Frobenius norm for pf.
-#  train_glasso_pred,
-#  train_glasso_y,
-#  group = groups,
-#  loss = "logit",
-# pred.loss = "loss",
-#  nfolds = 10,
-#  pf = frobenius_norm)
- 
-#############################
-
-
-cv_glasso_default <- cv.gglasso(  # defaults paramter for pf = sqrt(bs).
+cv_glasso_default <- cv.gglasso(  # defaults parameter for pf = sqrt(bs).
   train_glasso_pred,
   train_glasso_y,
   group = groups,
@@ -257,29 +144,18 @@ model_glasso_1se <- gglasso(
   loss = "logit",
   lambda = cv_glasso_default$lambda.1se
 )
-
-# lambda within 1se from the model_glasso_1se
-lambda_simplest <- which(cv_glasso_default$lambda == cv_glasso_default$lambda.1se) %>% 
-  {cv_glasso_default$cvupper[.]} %>% 
-  {which.max(cv_glasso_default$cvm < .)} %>% 
-  {cv_glasso_default$lambda[.]}
-
-
-
 ```
 
 ```{r}
 
 png(file = "cv_glasso_default.png")
 plot(cv_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
-#abline(v = log(lambda_simplest), lty = 2)
 dev.off()
 
 png(file = "glasso_coefpath_default.png")
 plot(model_glasso_default, xlab = TeX(r'($\log{(\lambda)}$)'))
 abline(v = log(cv_glasso_default$lambda.min), lty = 3)
 abline(v = log(cv_glasso_default$lambda.1se), lty = 3)
-#abline(v = log(lambda_simplest), lty = 2)
 dev.off()
 ```
 
@@ -290,14 +166,6 @@ model_glasso_default <- gglasso(
   group = groups,
   loss = "logit",
   lambda = cv_glasso_default$lambda.min
-)
-
-model_glasso_simplest <- gglasso(
-  train_glasso_pred, #only predictors chosen
-  train_glasso_y,
-  group = groups,
-  loss = "logit",
-  lambda = lambda_simplest
 )
 
 default_pred <- predict(model_glasso_default, newx = train_glasso_pred, type = "link") %>% 
@@ -321,6 +189,7 @@ roc_curve_def_1se <- default_pred %>%
 
 ggsave("roc_curve_def_1se.png")
 
+########### probably not use the below, remove when finished with report
 simplest_pred <- predict(model_glasso_simplest, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("glasso_simple" = "s0") %>% 
@@ -335,14 +204,15 @@ roc_curve_1se_simplest <- simplest_pred %>%
   labs(x = "1 - Specificity", y = "Sensitivity")
 
 ggsave("roc_curve_simple_1se.png")
-
+###########
 ```
 
 ```{r}
 set.seed(990108)
-#classification trees 
+# classification trees 
 
-#Fixing the nominall data to be ordered proportions
+# Fixing the nominal data to be ordered proportions in accordance with ESL
+# (Elements of statistical learning)
 bank_data_tree <- bank_data %>% 
   select(-duration, -default)  %>% 
   filter(if_all(job:y, ~ . != "unknown")) %>% 
@@ -414,32 +284,13 @@ png(filename = "cp_plot_tree.png")
 plotcp(tree_model) 
 dev.off()
 
-
 # info on the splits, variable importance etc. 
 summary(pruned_tree_1se)
 
 ```
 
-```{r, eval = FALSE}
-# this package is said to be the original algorithm, but worse results here. cant find much on the 
-# other package on how it calculates the tree so i will use it for now. 
-
-test <- tree(y ~ ., data = train_tree, split = "gini", control = tree.control(nobs = length(train_tree$y), mindev = 0.001))
-results <- prune.tree(test, method = "misclass")
-test <- prune.tree(test, k = results$k[max(which(results$dev == min(results$dev)))], method = "misclass")
-predict(test, newdata = test_tree) %>% 
-  as.data.frame() %>% 
-  rename("pred" = "1") %>% 
-  mutate(pred = if_else(pred < 0.5, 0, 1)) %>% 
-  select(pred) %>% 
-  {sum(.$pred == test_tree$y) / length(test_tree$y)}
-
-```
-
-
-
 ```{r}
-# roc for test data
+############ roc for test data, remove later if it is not used, high probability
 roc_curve <- test2 %>%
   as.data.frame() %>% 
   rename("pred_tree" = "1", "remove" = "0") %>% 
@@ -452,27 +303,28 @@ roc_curve <- test2 %>%
   geom_abline(slope = 1, intercept = 0) 
 
 ggsave("roc_curve.png")
+###################
 ```
 
 ```{r}
 # roc for train data
-test3 <- predict(pruned_tree_1se, newdata = train_tree, type = "prob")
-rownames(test3) <- NULL
+pred_tree_1se <- predict(pruned_tree_1se, newdata = train_tree, type = "prob")
+rownames(pred_tree_1se) <- NULL
 
-test4 <- predict(model_glasso_1se, newx = train_glasso_pred, type = "link") %>% 
+pred_glasso_1se <- predict(model_glasso_1se, newx = train_glasso_pred, type = "link") %>% 
   as.data.frame() %>% 
   rename("glasso" = "s0") %>% 
   mutate(y = train_under_samp$y, glasso = 1 / (1 + 2.718^-glasso))
 
-roc_curve_tree_glasso <- test3 %>% 
+roc_curve_tree_glasso <- pred_tree_1se %>% 
   as.data.frame() %>% 
   select(-"0") %>% 
   rename("Classification tree" = "1") %>% 
-  mutate("group-lasso" = test4$glasso, y = train_tree$y) %>%
+  mutate("Group-lasso" = pred_glasso_1se$glasso, y = train_tree$y) %>%
   mutate(y = as.numeric(y), y = if_else(y == 2, 1, 0)) %>% 
-  melt_roc(d = "y", m = c("group-lasso", "Classification tree")) %>% 
+  melt_roc(d = "y", m = c("Group-lasso", "Classification tree")) %>% 
   ggplot(aes(d = D, m = M, color = name)) +
-  geom_roc(labelround = 2, labelsize = 2.5, cutoffs.at = c(0.5, 0.36)) + #seq(1, 0.3, -0.1)) +
+  geom_roc(labelround = 2, labelsize = 2.5, cutoffs.at = c(0.5, 0.36)) + 
   geom_abline(slope = 1, intercept = 0) +
   labs(x = "1 - Specificity", y = "Sensitivity")
 
@@ -480,12 +332,13 @@ roc_curve_tree_glasso
 
 ggsave("roc_curve_tree_glasso.png", width = 7, height = 7)
 
-model_glasso_1se$beta  #coefficients for 1-se group lasso.
-model_glasso_1se$b0   # THe intercept term  
+model_glasso_1se$beta  # coefficients for 1-se group lasso.
+model_glasso_1se$b0    # The intercept term  
 ```
 
 ```{r}
-# confusion matrices for the tree and lasso
+# confusion matrices for the tree and lasso, change x in pred >= x, to get 
+# different threshold values to test on.
 test_pred_tree <- predict(pruned_tree_1se, newdata = test_tree[, -19], type = "prob")  
 rownames(test_pred_tree) <- NULL  
 test_pred_tree %>% 
@@ -507,106 +360,11 @@ test_glasso_pred %>%
     ref = as.factor(ref)
   ) %>% 
   {confusionMatrix(.$pred, .$ref, positive = "1")} 
-
-
 ```
 
 
 
 
-```{r,eval = FALSE}
-#testing correlation 
-bank_data %>% 
-  dplyr::select(loan, housing) %>% 
-  group_by(loan, housing) %>% 
-  summarise(count = n()) %>% 
-  ungroup() %>% 
-  pivot_wider(names_from = loan, values_from = count) #%>%
-  #column_to_rownames(var = "job") %>% 
-  dplyr::select(-job) %>% 
-  data.matrix() %>% 
-  cramerV() #understand bias correction!
-
-cram_v <- function(variable1, variable2, data, bias = TRUE){
-  # input names of columns in variable1 and variable2 (nominal) to return the
-  # cramer´s phi value. bias = TRUE means use of bias correction.  
-  data %>% 
-    dplyr::select(variable1, variable2) %>% 
-    group_by(across()) %>% #will not accept string input, why across is used.
-    summarise(count = n()) %>% 
-    ungroup() %>% 
-    pivot_wider(names_from = variable1, values_from = count, values_fill = 0) %>% # if NA, then zero realizations of this combination.
-    column_to_rownames(var = variable2) %>% 
-    data.matrix() %>% 
-    cramerV(bias.correct = bias) %>% 
-    return()
-}
-
-```
-
-```{r, eval = FALSE}
-nominal_var <- c("job", "marital", "loan", "housing", "contact", "month")
-comb <- combn(nominal_var, m = 2)
-cramer_res <- c() #matrix(NA, nrow = length(nominal_var), ncol = length(nominal_var))
-
-
-for (i in 1:length(comb[1,])) {
-  res <- cram_v(comb[1, i], comb[2, i], bank_data)
-  cramer_res[i] <- res
-}
-
-cram_v_matrix <- matrix(
-  NA, 
-  nrow = length(nominal_var), 
-  ncol = length(nominal_var), 
-  dimnames = list(nominal_var, nominal_var)
-) 
-cram_v_matrix[lower.tri(cram_v_matrix, diag=FALSE)] <- cramer_res  
-cram_v_matrix <- t(cram_v_matrix)
-cram_v_matrix[lower.tri(cram_v_matrix, diag=FALSE)] <- cramer_res 
-diag(cram_v_matrix) <- 1
-corrplot(cram_v_matrix, is.corr = FALSE)
-```
-
-```{r; eval = FALSE}
-bank_data_mod %>% 
-  select(
-    y, 
-    age, 
-    education, 
-    euribor3m, 
-    cons.price.idx,
-    nr.employed, 
-    cons.conf.idx,
-    campaign,
-    pdays, 
-    previous
-  ) %>% 
-  cor(method = "spearman") %>% 
-  corrplot(type = "upper")
-```
-
-
-
-
-```{r, eval = FALSE}
-# random forest training
-  
-forest <- randomForest(
-  y ~ ., 
-  data = train_tree, 
-  ntree = 200, ,
-  nodesize = 5
-)
-
-forest
-
-bank_data %>% 
-  filter(y == "yes") %>% 
-  group_by(nr.employed) %>% 
-  summarise(count = n()) %>% 
-  arrange(desc(nr.employed))
-```
 
 
 
